@@ -43,7 +43,7 @@ var scanCmd = &cobra.Command{
 
 		// 调用 scanner.ScanTCPPort() 测试端口 80（HTTP）。
 		// 这是一个 TCP SYN 扫描，用于检查端口状态。
-		status, err := scanner.ScanTCPPort(target, 80)
+		status, err := scanner.ScanTCPPort(target, 443)
 		if err != nil {
 			fmt.Printf("Error: %v\n", err)
 			return
