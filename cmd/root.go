@@ -15,6 +15,12 @@ import (
 	"github.com/spf13/cobra" // 导入 Cobra 库，用于构建 CLI。
 )
 
+const (
+	TCP  = 1
+	UDP  = 2
+	ICMP = 3
+)
+
 // rootCmd 是根命令 "goscan"。
 // Use: 命令名称；Short: 简短描述。
 var rootCmd = &cobra.Command{
@@ -43,7 +49,7 @@ var scanCmd = &cobra.Command{
 
 		// 调用 scanner.ScanTCPPort() 测试端口 80（HTTP）。
 		// 这是一个 TCP SYN 扫描，用于检查端口状态。
-		status, err := scanner.ScanTCPPort(target, 443)
+		status, err := scanner.ScanTCPPort(target, 80)
 		if err != nil {
 			fmt.Printf("Error: %v\n", err)
 			return

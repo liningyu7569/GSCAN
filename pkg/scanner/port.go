@@ -15,19 +15,24 @@ import (
 )
 
 func ScanTCPPort(target string, port uint16) (string, error) {
+
+	//检查目标地址
 	dstIP := net.ParseIP(target)
 	if dstIP == nil {
 		return "error", fmt.Errorf("invalid IP: %s", target)
 	}
+	//获取本机地址
 	srcIP, err := getLocalIP()
 	if err != nil {
 		return "error", fmt.Errorf("get local IP: %v", err)
 	}
 	fmt.Printf("Scanning %s:%d from %s\n", target, port, srcIP)
+	//获取网口
 	iface, err := net.InterfaceByName("en0")
 	if err != nil {
 		return "error", fmt.Errorf("get interface by name: %v", err)
 	}
+	//目标MAC
 	dstMAC, err := getGatewayMAC()
 	if err != nil {
 		return "error", fmt.Errorf("get gateway MAC: %v", err)

@@ -1,0 +1,1300 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GoingScan Pro - 高级网络安全扫描平台</title>
+    <!-- Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-primary: #0f1117;
+            --bg-secondary: #16181f;
+            --bg-tertiary: #1e212a;
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --border-color: #2d3748;
+            --accent: #6366f1;
+            --accent-hover: #4f46e5;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --info: #0ea5e9;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+            font-size: 0.9375rem;
+        }
+
+        /* Layout */
+        .container-fluid {
+            padding: 0;
+        }
+
+        .main-layout {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 280px;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border-color);
+            padding: 1.5rem;
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            z-index: 100;
+        }
+
+        .logo {
+            font-weight: 700;
+            font-size: 1.5rem;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .logo i {
+            color: var(--accent);
+            font-size: 1.8rem;
+        }
+
+        .nav-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .nav-title {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            margin-bottom: 0.75rem;
+            font-weight: 600;
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: all 0.2s ease;
+            font-weight: 500;
+            margin-bottom: 0.25rem;
+        }
+
+        .nav-link:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .nav-link.active {
+            background: rgba(99, 102, 241, 0.15);
+            color: var(--accent);
+            border-left: 3px solid var(--accent);
+            padding-left: 0.75rem;
+        }
+
+        .nav-link i {
+            width: 1.25rem;
+            text-align: center;
+            font-size: 1rem;
+        }
+
+        /* Main Content */
+        .main-content {
+            margin-left: 280px;
+            flex: 1;
+            padding: 2rem;
+            overflow-y: auto;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .page-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .user-menu {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            color: var(--text-secondary);
+        }
+
+        .user-avatar {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            background: var(--accent);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 0.875rem;
+            color: white;
+        }
+
+        /* Cards */
+        .card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 0.75rem;
+            overflow: hidden;
+            transition: all 0.2s ease;
+        }
+
+        .card:hover {
+            border-color: var(--accent);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        }
+
+        .card-header {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            background: var(--bg-tertiary);
+            font-weight: 600;
+            font-size: 0.9375rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--text-primary);
+        }
+
+        .card-body {
+            padding: 1.5rem;
+        }
+
+        /* Form Controls */
+        .form-group {
+            margin-bottom: 1.25rem;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+
+        .form-control, .form-select {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            border-radius: 0.5rem;
+            padding: 0.75rem 1rem;
+            font-size: 0.9375rem;
+            transition: all 0.2s ease;
+        }
+
+        .form-control:focus, .form-select:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+            outline: none;
+        }
+
+        .form-text {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+        }
+
+        /* Buttons */
+        .btn {
+            border-radius: 0.5rem;
+            font-weight: 500;
+            padding: 0.75rem 1.25rem;
+            transition: all 0.2s ease;
+            border: none;
+            cursor: pointer;
+            font-size: 0.9375rem;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+            transform: translateY(-1px);
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+        }
+
+        .btn-outline:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .btn-sm {
+            padding: 0.5rem 0.75rem;
+            font-size: 0.8125rem;
+        }
+
+        /* Tabs */
+        .nav-tabs {
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 1.5rem;
+        }
+
+        .nav-tabs .nav-link {
+            border: none;
+            color: var(--text-secondary);
+            padding: 0.75rem 1.25rem;
+            border-radius: 0.5rem 0.5rem 0 0;
+            font-weight: 500;
+            margin-right: 0.25rem;
+        }
+
+        .nav-tabs .nav-link:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .nav-tabs .nav-link.active {
+            background: var(--bg-tertiary);
+            color: var(--accent);
+            border-bottom: 2px solid var(--accent);
+        }
+
+        /* Table */
+        .table {
+            margin-bottom: 0;
+            color: var(--text-primary);
+        }
+
+        .table th {
+            border-top: none;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            font-weight: 500;
+            font-size: 0.8125rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .table td {
+            border-color: var(--border-color);
+            vertical-align: middle;
+        }
+
+        .table-hover tbody tr:hover {
+            background: var(--bg-tertiary);
+        }
+
+        /* Badges */
+        .badge {
+            font-weight: 500;
+            font-size: 0.75rem;
+            padding: 0.35rem 0.65rem;
+            border-radius: 0.5rem;
+        }
+
+        .badge-open { background: rgba(34, 197, 94, 0.2); color: var(--success); }
+        .badge-closed { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+        .badge-filtered { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
+        .badge-high { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+        .badge-medium { background: rgba(251, 146, 60, 0.2); color: #fb923c; }
+        .badge-low { background: rgba(34, 197, 94, 0.15); color: var(--success); }
+
+        /* Terminal */
+        .terminal {
+            background: #0d1117;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+            font-size: 0.8125rem;
+            height: 400px;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+            margin-top: 1rem;
+        }
+
+        .terminal .line {
+            margin-bottom: 0.25rem;
+            opacity: 0;
+            animation: fadeIn 0.3s forwards;
+        }
+
+        @keyframes fadeIn {
+            to { opacity: 1; }
+        }
+
+        .terminal .timestamp {
+            color: #5eead4;
+            margin-right: 0.5rem;
+        }
+
+        .terminal .cmd {
+            color: #7dd3fc;
+        }
+
+        .terminal .output {
+            color: #e2e8f0;
+        }
+
+        .terminal .success {
+            color: #22c55e;
+        }
+
+        .terminal .warning {
+            color: #f59e0b;
+        }
+
+        .terminal .error {
+            color: #ef4444;
+        }
+
+        /* Progress */
+        .progress {
+            height: 6px;
+            background: var(--bg-tertiary);
+            border-radius: 3px;
+            overflow: hidden;
+            margin: 1rem 0;
+        }
+
+        .progress-bar {
+            background: var(--accent);
+            transition: width 0.3s ease;
+        }
+
+        /* Loading */
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-muted);
+        }
+
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border: 3px solid var(--bg-tertiary);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Charts */
+        .chart-container {
+            position: relative;
+            height: 280px;
+            margin: 1.5rem 0;
+        }
+
+        /* Responsive */
+        @media (max-width: 992px) {
+            .sidebar {
+                width: 100%;
+                height: auto;
+                position: relative;
+            }
+            .main-content {
+                margin-left: 0;
+            }
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--accent);
+        }
+
+        /* Code Block */
+        pre {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            overflow-x: auto;
+            font-size: 0.8125rem;
+            margin: 1rem 0;
+        }
+
+        code {
+            font-family: 'JetBrains Mono', monospace;
+            color: #7dd3fc;
+        }
+
+        /* Toggle Switch */
+        .form-switch {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .form-switch input {
+            width: 44px;
+            height: 24px;
+            background: var(--bg-tertiary);
+            border-radius: 12px;
+            position: relative;
+            cursor: pointer;
+            appearance: none;
+            transition: 0.2s;
+        }
+
+        .form-switch input::before {
+            content: '';
+            position: absolute;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            top: 3px;
+            left: 3px;
+            background: var(--text-muted);
+            transition: 0.2s;
+        }
+
+        .form-switch input:checked {
+            background: var(--accent);
+        }
+
+        .form-switch input:checked::before {
+            left: 23px;
+            background: white;
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+<div class="main-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="logo">
+            <i  class="fas fa-shield-alt"></i>
+            <span>GoingScan Pro</span>
+        </div>
+
+        <div class="nav-group">
+            <div class="nav-title">扫描任务</div>
+            <a href="#" class="nav-link active">
+                <i class="fas fa-search"></i>
+                <span>网络扫描</span>
+            </a>
+            <a href="#" class="nav-link">
+                <i class="fas fa-bug"></i>
+                <span>漏洞扫描</span>
+            </a>
+            <a href="#" class="nav-link">
+                <i class="fas fa-fingerprint"></i>
+                <span>指纹识别</span>
+            </a>
+        </div>
+
+        <div class="nav-group">
+            <div class="nav-title">工具箱</div>
+            <a href="#" class="nav-link">
+                <i class="fas fa-terminal"></i>
+                <span>Nmap 脚本引擎</span>
+            </a>
+            <a href="#" class="nav-link">
+                <i class="fas fa-code"></i>
+                <span>自定义 NSE</span>
+            </a>
+            <a href="#" class="nav-link">
+                <i class="fas fa-download"></i>
+                <span>结果导出</span>
+            </a>
+        </div>
+
+        <div class="nav-group">
+            <div class="nav-title">配置</div>
+            <a href="#" class="nav-link">
+                <i class="fas fa-cog"></i>
+                <span>扫描策略</span>
+            </a>
+            <a href="#" class="nav-link">
+                <i class="fas fa-history"></i>
+                <span>任务历史</span>
+            </a>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <header class="header">
+            <h1 class="page-title">高级网络扫描</h1>
+            <div class="user-menu">
+                <span>安全工程师</span>
+                <div class="user-avatar">SE</div>
+            </div>
+        </header>
+
+        <div class="row g-4">
+            <!-- Configuration Panel -->
+            <div class="col-lg-4">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <i class="fas fa-sliders-h"></i>
+                        扫描配置
+                    </div>
+                    <div class="card-body">
+                        <form id="scanForm">
+                            <!-- Target -->
+                            <div class="form-group">
+                                <label class="form-label">
+                                    <i class="fas fa-bullseye"></i> 扫描目标
+                                </label>
+                                <input type="text" class="form-control" id="target" placeholder="192.168.1.0/24, 10.0.0.1, example.com" required>
+                                <div class="form-text">支持 CIDR、IP 范围、域名、文件导入</div>
+                            </div>
+
+                            <!-- Scan Profile -->
+                            <div class="form-group">
+                                <label class="form-label">扫描模板</label>
+                                <select class="form-select" id="scanProfile">
+                                    <option value="quick">快速扫描 (Quick)</option>
+                                    <option value="standard">标准扫描 (Standard)</option>
+                                    <option value="thorough">深度扫描 (Thorough)</option>
+                                    <option value="stealth">隐蔽扫描 (Stealth)</option>
+                                    <option value="custom" selected>自定义 (Custom)</option>
+                                </select>
+                            </div>
+
+                            <!-- Scan Types -->
+                            <div class="form-group">
+                                <label class="form-label">扫描模块</label>
+                                <div class="row g-2">
+                                    <div class="col-6">
+                                        <div class="form-switch">
+                                            <input type="checkbox" id="hostDiscovery" checked>
+                                            <label for="hostDiscovery">主机发现</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="form-switch">
+                                            <input type="checkbox" id="portScan" checked>
+                                            <label for="portScan">端口扫描</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="form-switch">
+                                            <input type="checkbox" id="osDetection">
+                                            <label for="osDetection">OS 指纹</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="form-switch">
+                                            <input type="checkbox" id="serviceVersion" checked>
+                                            <label for="serviceVersion">服务版本</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="form-switch">
+                                            <input type="checkbox" id="vulnScan">
+                                            <label for="vulnScan">漏洞扫描</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="form-switch">
+                                            <input type="checkbox" id="webVuln">
+                                            <label for="webVuln">Web 漏洞</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="form-switch">
+                                            <input type="checkbox" id="bruteForce">
+                                            <label for="bruteForce">暴力破解</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="form-switch">
+                                            <input type="checkbox" id="dnsEnum">
+                                            <label for="dnsEnum">DNS 枚举</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Advanced Options (collapsed by default) -->
+                            <details class="mb-3">
+                                <summary style="cursor:pointer; color:var(--accent); font-weight:500; font-size:0.875rem;">
+                                    <i class="fas fa-chevron-down me-1"></i> 高级参数
+                                </summary>
+                                <div class="mt-3">
+                                    <div class="form-group">
+                                        <label class="form-label">端口范围</label>
+                                        <input type="text" class="form-control" id="ports" value="1-65535" placeholder="1-1000,8080,3306,3389">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">扫描技术</label>
+                                        <select class="form-select" id="scanTech">
+                                            <option value="-sS">SYN 扫描 (-sS)</option>
+                                            <option value="-sT">TCP 连接 (-sT)</option>
+                                            <option value="-sU">UDP 扫描 (-sU)</option>
+                                            <option value="-sA">ACK 扫描 (-sA)</option>
+                                            <option value="-sW">Window 扫描 (-sW)</option>
+                                            <option value="-sM">Maimon 扫描 (-sM)</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">时间与性能</label>
+                                        <select class="form-select" id="timing">
+                                            <option value="-T1">T1 - 偏执</option>
+                                            <option value="-T2">T2 - 礼貌</option>
+                                            <option value="-T3">T3 - 正常</option>
+                                            <option value="-T4" selected>T4 - 激进</option>
+                                            <option value="-T5">T5 - 疯狂</option>
+                                        </select>
+                                    </div>
+                                    <div class="row g-3">
+                                        <div class="col-6">
+                                            <div class="form-switch">
+                                                <input type="checkbox" id="frag">
+                                                <label for="frag">--mtu 24 (碎片)</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="form-switch">
+                                                <input type="checkbox" id="decoy">
+                                                <label for="decoy">--decoy (诱饵)</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="form-switch">
+                                                <input type="checkbox" id="spoof">
+                                                <label for="spoof">--spoof-mac</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="form-switch">
+                                                <input type="checkbox" id="idle">
+                                                <label for="idle">Idle 扫描</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </details>
+
+                            <!-- NSE Scripts -->
+                            <div class="form-group">
+                                <label class="form-label">NSE 脚本</label>
+                                <select class="form-select" id="nseScripts" multiple size="3">
+                                    <option value="vuln">vuln (漏洞)</option>
+                                    <option value="auth">auth (认证)</option>
+                                    <option value="brute">brute (暴力)</option>
+                                    <option value="discovery">discovery (发现)</option>
+                                    <option value="exploit">exploit (利用)</option>
+                                    <option value="http-enum">http-enum</option>
+                                    <option value="ssl-enum-ciphers">ssl-enum-ciphers</option>
+                                    <option value="smb-vuln-*">smb-vuln-*</option>
+                                </select>
+                                <div class="form-text">按住 Ctrl 可多选</div>
+                            </div>
+
+                            <!-- Start Button -->
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="fas fa-play me-2"></i>启动扫描
+                            </button>
+                        </form>
+
+                        <!-- Loading State -->
+                        <div class="loading" id="loadingState">
+                            <div class="spinner"></div>
+                            <p>正在初始化扫描引擎...</p>
+                            <div class="progress">
+                                <div class="progress-bar" id="scanProgress" style="width: 0%"></div>
+                            </div>
+                            <small id="progressText">准备中...</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results Panel -->
+            <div class="col-lg-8">
+                <div id="welcomeScreen" class="text-center py-5">
+                    <i class="fas fa-shield-alt fa-4x text-muted mb-4"></i>
+                    <h3 style="color:var(--text-secondary);">准备执行高级网络扫描</h3>
+                    <p style="color:var(--text-muted);">配置左侧参数后点击 “启动扫描” 开始任务</p>
+                </div>
+
+                <div id="resultsPanel" style="display:none;">
+                    <!-- Summary Cards -->
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-3">
+                            <div class="card">
+                                <div class="card-body text-center">
+                                    <h5 class="text-muted mb-1">存活主机</h5>
+                                    <h3 id="hostsUp" class="text-success">127</h3>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card">
+                                <div class="card-body text-center">
+                                    <h5 class="text-muted mb-1">开放端口</h5>
+                                    <h3 id="openPorts" class="text-info">1,842</h3>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card">
+                                <div class="card-body text-center">
+                                    <h5 class="text-muted mb-1">检测服务</h5>
+                                    <h3 id="services" class="text-primary">89</h3>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card">
+                                <div class="card-body text-center">
+                                    <h5 class="text-muted mb-1">高危漏洞</h5>
+                                    <h3 id="critVulns" class="text-danger">12</h3>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Charts -->
+                    <div class="row g-4 mb-4">
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <i class="fas fa-chart-pie"></i> 端口状态分布
+                                </div>
+                                <div class="card-body">
+                                    <div class="chart-container">
+                                        <canvas id="portChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <i class="fas fa-exclamation-triangle"></i> 漏洞严重性
+                                </div>
+                                <div class="card-body">
+                                    <div class="chart-container">
+                                        <canvas id="vulnChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Results Tabs -->
+                    <div class="card">
+                        <div class="card-header">
+                            <ul class="nav nav-tabs card-header-tabs">
+                                <li class="nav-item">
+                                    <a class="nav-link active" data-bs-toggle="tab" href="#hosts">
+                                        <i class="fas fa-server"></i> 主机
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" data-bs-toggle="tab" href="#ports">
+                                        <i class="fas fa-network-wired"></i> 端口
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" data-bs-toggle="tab" href="#os">
+                                        <i class="fas fa-fingerprint"></i> 系统
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" data-bs-toggle="tab" href="#vulns">
+                                        <i class="fas fa-bug"></i> 漏洞
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" data-bs-toggle="tab" href="#scripts">
+                                        <i class="fas fa-code"></i> NSE
+                                    </a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" data-bs-toggle="tab" href="#terminal">
+                                        <i class="fas fa-terminal"></i> 终端
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="card-body">
+                            <div class="tab-content">
+                                <!-- Hosts -->
+                                <div class="tab-pane fade show active" id="hosts">
+                                    <div class="table-responsive">
+                                        <table class="table table-hover">
+                                            <thead>
+                                            <tr>
+                                                <th>IP 地址</th>
+                                                <th>MAC 地址</th>
+                                                <th>厂商</th>
+                                                <th>OS</th>
+                                                <th>上线时间</th>
+                                                <th>状态</th>
+                                            </tr>
+                                            </thead>
+                                            <tbody id="hostsTable">
+                                            <!-- Filled by JS -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                <!-- Ports -->
+                                <div class="tab-pane fade" id="ports">
+                                    <div class="d-flex justify-content-between mb-3">
+                                        <div>
+                                            <button class="btn btn-outline btn-sm me-2" id="exportCSV">
+                                                <i class="fas fa-download"></i> CSV
+                                            </button>
+                                            <button class="btn btn-outline btn-sm" id="exportXML">
+                                                <i class="fas fa-download"></i> XML
+                                            </button>
+                                        </div>
+                                        <div class="btn-group">
+                                            <button class="btn btn-outline btn-sm dropdown-toggle" data-bs-toggle="dropdown">
+                                                过滤
+                                            </button>
+                                            <ul class="dropdown-menu">
+                                                <li><a class="dropdown-item" href="#" data-filter="all">全部</a></li>
+                                                <li><a class="dropdown-item" href="#" data-filter="open">开放</a></li>
+                                                <li><a class="dropdown-item" href="#" data-filter="closed">关闭</a></li>
+                                                <li><a class="dropdown-item" href="#" data-filter="filtered">过滤</a></li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                    <div class="table-responsive">
+                                        <table class="table table-hover">
+                                            <thead>
+                                            <tr>
+                                                <th>端口</th>
+                                                <th>状态</th>
+                                                <th>协议</th>
+                                                <th>服务</th>
+                                                <th>版本</th>
+                                                <th>额外信息</th>
+                                            </tr>
+                                            </thead>
+                                            <tbody id="portsTable">
+                                            <!-- Filled by JS -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                <!-- OS -->
+                                <div class="tab-pane fade" id="os">
+                                    <div class="row">
+                                        <div class="col-md-8">
+                                            <h6>TCP/IP 栈指纹</h6>
+                                            <pre id="osFingerprint"></pre>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="text-center">
+                                                <div style="width:80px;height:80px;border-radius:50%;background:var(--accent);display:inline-flex;align-items:center;justify-content:center;margin-bottom:1rem;">
+                                                    <i class="fab fa-windows" style="font-size:2rem;color:white;"></i>
+                                                </div>
+                                                <h6>Windows Server 2022</h6>
+                                                <p class="text-muted">准确度: <strong>98.7%</strong></p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Vulnerabilities -->
+                                <div class="tab-pane fade" id="vulns">
+                                    <div id="vulnList">
+                                        <!-- Filled by JS -->
+                                    </div>
+                                </div>
+
+                                <!-- NSE Scripts -->
+                                <div class="tab-pane fade" id="scripts">
+                                    <div class="alert alert-info">
+                                        <i class="fas fa-info-circle"></i>
+                                        已执行 47 个 NSE 脚本，发现 12 个潜在问题
+                                    </div>
+                                    <div class="accordion" id="nseAccordion">
+                                        <!-- Filled by JS -->
+                                    </div>
+                                </div>
+
+                                <!-- Terminal -->
+                                <div class="tab-pane fade" id="terminal">
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <small class="text-muted">实时终端输出</small>
+                                        <button class="btn btn-outline btn-sm" id="copyTerminal">
+                                            <i class="fas fa-copy"></i> 复制
+                                        </button>
+                                    </div>
+                                    <div class="terminal" id="terminalOutput">
+                                        <!-- Filled by JS -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Bootstrap 5 -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    // Mock Data
+    const mockHosts = [
+        {ip: '192.168.1.100', mac: '00:1A:2B:3C:4D:5E', vendor: 'Dell Inc.', os: 'Windows Server 2022', uptime: '12d 3h 45m', status: 'up'},
+        {ip: '192.168.1.101', mac: '08:00:27:12:34:56', vendor: 'Oracle VirtualBox', os: 'Linux 5.15', uptime: '2d 1h 12m', status: 'up'},
+        {ip: '192.168.1.102', mac: '00:0C:29:AB:CD:EF', vendor: 'VMware, Inc.', os: 'Windows 10', uptime: '5h 23m', status: 'up'},
+        {ip: '192.168.1.150', mac: 'N/A', vendor: 'N/A', os: 'Unknown', uptime: 'N/A', status: 'filtered'},
+    ];
+
+    const mockPorts = [
+        {port: 22, protocol: 'tcp', state: 'open', service: 'ssh', version: 'OpenSSH 8.9p1 Ubuntu', extra: 'protocol 2.0'},
+        {port: 80, protocol: 'tcp', state: 'open', service: 'http', version: 'nginx 1.18.0', extra: 'title: Login Page'},
+        {port: 443, protocol: 'tcp', state: 'open', service: 'https', version: 'nginx 1.18.0', extra: 'TLSv1.3, cert: *.example.com'},
+        {port: 3306, protocol: 'tcp', state: 'filtered', service: 'mysql', version: '', extra: ''},
+        {port: 3389, protocol: 'tcp', state: 'open', service: 'ms-wbt-server', version: 'Microsoft Terminal Services', extra: ''},
+        {port: 53, protocol: 'udp', state: 'open', service: 'domain', version: 'ISC BIND 9.16.1', extra: ''},
+    ];
+
+    const mockVulns = [
+        {id: 'CVE-2021-44228', name: 'Log4Shell', severity: 'high', cve: 'CVE-2021-44228', desc: 'Apache Log4j2 JNDI 远程代码执行', service: 'http (8080)'},
+        {id: 'MS17-010', name: 'EternalBlue', severity: 'high', cve: 'CVE-2017-0144', desc: 'SMBv1 远程代码执行漏洞', service: 'microsoft-ds (445)'},
+        {id: 'SQL-INJ-001', name: 'SQL Injection', severity: 'high', cve: 'CWE-89', desc: '用户登录表单存在盲注', service: 'http (80)'},
+        {id: 'WEAK-CRED-001', name: 'Weak Credentials', severity: 'medium', cve: '', desc: 'SSH 默认密码 admin/admin', service: 'ssh (22)'},
+    ];
+
+    const terminalLines = [
+        '[10:30:12] Starting NexScan Pro v2.1.0',
+        '[10:30:12] Loading NSE scripts: 1247 scripts loaded',
+        '[10:30:13] Target specification: 192.168.1.0/24',
+        '[10:30:13] Initiating ARP Ping Scan',
+        '[10:30:15] 127 hosts up, 129 down',
+        '[10:30:15] Initiating SYN Stealth Scan (-sS -p 1-65535 -T4)',
+        '[10:30:18] Discovered open port 22/tcp on 192.168.1.100',
+        '[10:30:18] Discovered open port 80/tcp on 192.168.1.100',
+        '[10:30:45] Service detection: 89 services identified',
+        '[10:30:46] OS detection: Windows Server 2022 (98.7% accuracy)',
+        '[10:30:47] Running NSE scripts: vuln, brute, http-enum',
+        '[10:30:52] CVE-2021-44228 detected on 192.168.1.100:8080',
+        '[10:31:01] Scan completed: 127 hosts, 1842 open ports, 12 critical vulnerabilities',
+    ];
+
+    // DOM Elements
+    const scanForm = document.getElementById('scanForm');
+    const loadingState = document.getElementById('loadingState');
+    const welcomeScreen = document.getElementById('welcomeScreen');
+    const resultsPanel = document.getElementById('resultsPanel');
+    const scanProgress = document.getElementById('scanProgress');
+    const progressText = document.getElementById('progressText');
+
+    // Results
+    const hostsUp = document.getElementById('hostsUp');
+    const openPorts = document.getElementById('openPorts');
+    const services = document.getElementById('services');
+    const critVulns = document.getElementById('critVulns');
+    const hostsTable = document.getElementById('hostsTable');
+    const portsTable = document.getElementById('portsTable');
+    const vulnList = document.getElementById('vulnList');
+    const terminalOutput = document.getElementById('terminalOutput');
+    const osFingerprint = document.getElementById('osFingerprint');
+
+    let portChart, vulnChart;
+
+    // Form Submit
+    scanForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const target = document.getElementById('target').value;
+        if (!target) return;
+
+        // Show loading
+        loadingState.style.display = 'block';
+        welcomeScreen.style.display = 'none';
+        resultsPanel.style.display = 'none';
+
+        let progress = 0;
+        const phases = ['初始化引擎', '主机发现', '端口扫描', '服务探测', 'OS 指纹', '漏洞扫描', '生成报告'];
+        let phaseIndex = 0;
+
+        const interval = setInterval(() => {
+            progress += Math.floor(Math.random() * 12) + 5;
+            if (progress > 100) progress = 100;
+
+            if (progress >= (phaseIndex + 1) * (100 / phases.length)) {
+                phaseIndex++;
+            }
+
+            scanProgress.style.width = progress + '%';
+            progressText.textContent = `${phases[Math.min(phaseIndex, phases.length - 1)]}... ${progress}%`;
+
+            if (progress >= 100) {
+                clearInterval(interval);
+                setTimeout(() => {
+                    loadingState.style.display = 'none';
+                    resultsPanel.style.display = 'block';
+                    renderResults();
+                }, 800);
+            }
+        }, 400);
+    });
+
+    function renderResults() {
+        // Summary
+        hostsUp.textContent = '127';
+        openPorts.textContent = '1,842';
+        services.textContent = '89';
+        critVulns.textContent = '12';
+
+        // Hosts
+        hostsTable.innerHTML = '';
+        mockHosts.forEach(host => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                    <td><code>${host.ip}</code></td>
+                    <td><code>${host.mac}</code></td>
+                    <td>${host.vendor}</td>
+                    <td>${host.os}</td>
+                    <td>${host.uptime}</td>
+                    <td><span class="badge badge-${host.status === 'up' ? 'open' : 'filtered'}">${host.status}</span></td>
+                `;
+            hostsTable.appendChild(row);
+        });
+
+        // Ports
+        portsTable.innerHTML = '';
+        mockPorts.forEach(port => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                    <td><strong>${port.port}/${port.protocol}</strong></td>
+                    <td><span class="badge badge-${port.state}">${port.state}</span></td>
+                    <td>${port.protocol.toUpperCase()}</td>
+                    <td>${port.service}</td>
+                    <td><small>${port.version}</small></td>
+                    <td><small class="text-muted">${port.extra}</small></td>
+                `;
+            portsTable.appendChild(row);
+        });
+
+        // Vulnerabilities
+        vulnList.innerHTML = '';
+        mockVulns.forEach(vuln => {
+            const card = document.createElement('div');
+            card.className = 'card mb-3';
+            card.style.borderLeft = `4px solid ${vuln.severity === 'high' ? '#ef4444' : '#fb923c'}`;
+            card.innerHTML = `
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="mb-1">
+                                    <span class="badge badge-${vuln.severity}">${vuln.severity.toUpperCase()}</span>
+                                    ${vuln.name}
+                                </h6>
+                                <p class="mb-1"><strong>${vuln.cve || vuln.id}</strong></p>
+                                <p class="text-muted small">${vuln.desc}</p>
+                                <small class="text-muted">服务: ${vuln.service}</small>
+                            </div>
+                            <button class="btn btn-outline btn-sm">
+                                <i class="fas fa-external-link-alt"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            vulnList.appendChild(card);
+        });
+
+        // Terminal
+        terminalOutput.innerHTML = '';
+        let i = 0;
+        const typeLine = () => {
+            if (i < terminalLines.length) {
+                const line = document.createElement('div');
+                line.className = 'line';
+                line.innerHTML = `<span class="timestamp">[${new Date().toLocaleTimeString()}]</span> <span class="output">${terminalLines[i]}</span>`;
+                terminalOutput.appendChild(line);
+                terminalOutput.scrollTop = terminalOutput.scrollHeight;
+                i++;
+                setTimeout(typeLine, 200 + Math.random() * 300);
+            }
+        };
+        typeLine();
+
+        // OS Fingerprint
+        osFingerprint.textContent = `TSeq(Class=RI%gcd=1%SI=1F4E8%IPID=Z%TS=U)
+T1(Resp=Y%DF=Y%W=FFFF%ACK=S++%Flags=AS%Ops=MNNTNW)
+T2(Resp=Y%DF=N%W=0%ACK=S%Flags=AR%Ops=)
+T3(Resp=Y%DF=Y%W=FFFF%ACK=S++%Flags=AS%Ops=MNNTNW)
+T4(Resp=Y%DF=Y%W=0%ACK=O%Flags=R%Ops=)
+T5(Resp=Y%DF=Y%W=0%ACK=S++%Flags=AR%Ops=)
+T6(Resp=Y%DF=Y%W=0%ACK=O%Flags=R%Ops=)
+T7(Resp=Y%DF=Y%W=0%ACK=S++%Flags=AR%Ops=)
+PU(Resp=Y%DF=N%TOS=C0%IPLEN=164%RIPTL=148%RIPCK=E%RUCK=E%RUDG=E)`;
+
+        // Charts
+        initCharts();
+    }
+
+    function initCharts() {
+        // Port Chart
+        const portCtx = document.getElementById('portChart').getContext('2d');
+        const open = mockPorts.filter(p => p.state === 'open').length;
+        const closed = mockPorts.filter(p => p.state === 'closed').length;
+        const filtered = mockPorts.filter(p => p.state === 'filtered').length;
+
+        if (portChart) portChart.destroy();
+        portChart = new Chart(portCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['开放', '关闭', '过滤'],
+                datasets: [{
+                    data: [open, closed, filtered],
+                    backgroundColor: ['#22c55e', '#ef4444', '#f59e0b'],
+                    borderWidth: 0,
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { position: 'bottom', labels: { color: '#94a3b8' } }
+                }
+            }
+        });
+
+        // Vuln Chart
+        const vulnCtx = document.getElementById('vulnChart').getContext('2d');
+        const high = mockVulns.filter(v => v.severity === 'high').length;
+        const medium = mockVulns.filter(v => v.severity === 'medium').length;
+
+        if (vulnChart) vulnChart.destroy();
+        vulnChart = new Chart(vulnCtx, {
+            type: 'bar',
+            data: {
+                labels: ['高危', '中危', '低危'],
+                datasets: [{
+                    label: '数量',
+                    data: [high, medium, 3],
+                    backgroundColor: ['#ef4444', '#fb923c', '#22c55e'],
+                    borderRadius: 4,
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: { beginAtZero: true, ticks: { color: '#94a3b8', stepSize: 1 } },
+                    x: { ticks: { color: '#94a3b8' } }
+                }
+            }
+        });
+    }
+
+    // Export Functions
+    document.getElementById('exportCSV').addEventListener('click', () => {
+        const csv = 'Port,Protocol,State,Service,Version,Extra\n' +
+            mockPorts.map(p => `${p.port},${p.protocol},${p.state},${p.service},${p.version},${p.extra}`).join('\n');
+        downloadFile(csv, 'ports.csv', 'text/csv');
+    });
+
+    document.getElementById('exportXML').addEventListener('click', () => {
+        const xml = `<?xml version="1.0"?>
+<nmaprun>
+  <scaninfo type="syn" protocol="tcp" numservices="65535"/>
+  <host>
+    <address addr="192.168.1.100" addrtype="ipv4"/>
+    <ports>${mockPorts.map(p => `
+      <port protocol="${p.protocol}" portid="${p.port}">
+        <state state="${p.state}"/>
+        <service name="${p.service}" product="${p.version.split(' ')[0]}" version="${p.version.split(' ').slice(1).join(' ')}"/>
+      </port>`).join('')}
+    </ports>
+  </host>
+</nmaprun>`;
+        downloadFile(xml, 'scan.xml', 'application/xml');
+    });
+
+    function downloadFile(content, filename, type) {
+        const blob = new Blob([content], { type });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+    }
+
+    // Copy Terminal
+    document.getElementById('copyTerminal').addEventListener('click', () => {
+        navigator.clipboard.writeText(terminalOutput.innerText);
+    });
+
+    // Port Filter
+    document.querySelectorAll('[data-filter]').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            const filter = this.getAttribute('data-filter');
+            const rows = portsTable.querySelectorAll('tr');
+            rows.forEach(row => {
+                const state = row.querySelector('.badge')?.textContent.trim();
+                row.style.display = (filter === 'all' || state === filter) ? '' : 'none';
+            });
+        });
+    });
+</script>
+</body>
+</html>
