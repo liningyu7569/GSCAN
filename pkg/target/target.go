@@ -1,6 +1,7 @@
 package target
 
 import (
+	"Going_Scan/pkg/ulit"
 	"errors"
 	"fmt"
 	"golang.org/x/sys/unix"
@@ -18,6 +19,13 @@ const (
 	HostUnknown HostStatus = iota
 	HostUp
 	HostDown
+)
+
+const (
+	PUnkown = 10
+	POpen   = 11
+	PClose  = 12
+	PFilter = 13
 )
 
 // PortState 定义端口状态
@@ -46,18 +54,19 @@ type PortInfo struct {
 type Target struct {
 	// --- 基础标识 (只读) ---
 	// 使用 netip.Addr 是 Go 1.18+ 的最佳实践 (Value type, allocation-free)
-	target_ip, source_ip, nexthope_ip   netip.Addr
+	targetIp, sourceIp, NexthopeIp      netip.Addr
 	targetSock, sourceSock, nextHopSock unix.Sockaddr
 	// --- 链路层信息 (L2 Scanning 需要) ---
 	// 用于存储解析到的 MAC 地址或网关 MAC
-	mac        net.HardwareAddr
-	nextHopMAC net.HardwareAddr // 如果是外网目标，这里存网关 MAC
-	iface      *net.Interface   // 出口网卡
+	SrcMac            net.HardwareAddr
+	NextHopMAC        net.HardwareAddr // 如果是外网目标，这里存网关 MAC
+	Iface             *net.Interface   // 出口网卡
+	DirectylConnected bool             //是否直连
 
 	// --- 状态信息 (并发读写) ---
 	// 必须使用 RWMutex 保护，因为扫描协程会并发写入 Port 结果
 	mu         sync.RWMutex
-	status     HostStatus
+	Status     HostStatus
 	hostnames  string
 	targetname string
 	//TTL
@@ -68,29 +77,20 @@ type Target struct {
 	FPR         []string
 	osscan_flag int8
 
-	// 端口存储
-	// map[uint16]*PortInfo 用于稀疏扫描
-	// 如果是全端口扫描，建议优化为 Slice 或 BitSet
-	ports map[uint16]*PortInfo
+	// 端口状态存储
+	PortStates map[int][]uint8
 
 	// OS 探测结果 (预留)
 	osFingerprint string
 }
 
 // NewTarget 工厂函数
-// 工厂函数返回的是新对象，尚未被共享，因此不需要加锁
-func NewTarget(ipStr string) (*Target, error) {
-	// 解析 IP (支持 IPv4/IPv6)
-	addr, err := netip.ParseAddr(ipStr)
-	if err != nil {
-		return nil, fmt.Errorf("invalid target IP: %w", err)
-	}
-
-	return &Target{
-		target_ip: addr,
-		status:    HostUnknown,
-		ports:     make(map[uint16]*PortInfo),
-	}, nil
+func NewTarget(ip netip.Addr) *Target {
+	target := &Target{}
+	target.setTargetIp(ip)
+	target.PortStates = make(map[int][]uint8)
+	target.Status = HostUnknown
+	return target
 }
 
 // --- Public Wrapper Methods (Thread-Safe) ---
@@ -116,6 +116,53 @@ func (t *Target) SourceSockAddr() unix.Sockaddr {
 	return t.sourceSockAddr()
 }
 
+// 返回源地址
+func (t *Target) SourceIpAddr() netip.Addr {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return t.sourceip()
+}
+
+// 返回目标地址
+func (t *Target) TargetIpAddr() netip.Addr {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return t.targetip()
+}
+
+// 设置目标地址
+func (t *Target) SetTargetIpAddr(ip netip.Addr) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.setTargetIp(ip)
+}
+
+// 设置源地址
+func (t *Target) SetSourcetIp(ip netip.Addr) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.setSourceIp(ip)
+}
+
+func (t *Target) SetRouteInfo(iface *net.Interface, srcIP net.IP, srcMAC net.HardwareAddr, gateway net.IP, direct bool) {
+	var err error
+	t.Iface = iface
+	t.sourceIp, err = ulit.StdIPToNetip(srcIP)
+	if err != nil {
+		fmt.Errorf("SrcIP to netip.Addr is error for %e", err)
+	}
+	t.SrcMac = srcMAC
+	t.DirectylConnected = direct
+	if direct {
+		t.NexthopeIp = t.targetIp
+	} else {
+		t.NexthopeIp, err = ulit.StdIPToNetip(gateway)
+		if err != nil {
+			fmt.Errorf("NexrHopeIp_Gateway to netip.Addr is error for %e", err)
+		}
+	}
+}
+
 // 设置源Sock (Public)
 func (t *Target) SetSourceSockAddr(sa unix.Sockaddr) error {
 	t.mu.Lock()
@@ -137,6 +184,27 @@ func (t *Target) SetHostname(name string) {
 	t.setHostname(name)
 }
 
+// 查询端口状态
+func (t *Target) GetPortInfo(protocol int, port int) uint {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.GetPortInfo(protocol, port)
+}
+
+// 初始化端口状态数组
+func (t *Target) InitProtocolState(protocol int, count int) {
+	if count > 0 {
+		t.PortStates[protocol] = make([]uint8, count)
+	}
+}
+
+// 设置端口状态
+func (t *Target) SetPortInfo(protocol int, port uint, state uint8) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.setPortInfo(protocol, port, state)
+}
+
 // --- Private Logic Methods (No Locking) ---
 
 // 返回目标Sock (Private)
@@ -155,7 +223,7 @@ func (t *Target) setTargetSockAddr(sa unix.Sockaddr) error {
 	if err != nil {
 		return fmt.Errorf("invalid Target_sockaddr :%w", err)
 	}
-	t.target_ip = ip
+	t.targetIp = ip
 
 	return nil
 }
@@ -165,6 +233,17 @@ func (t *Target) sourceSockAddr() unix.Sockaddr {
 	return t.sourceSock
 }
 
+func (t *Target) sourceip() netip.Addr {
+	return t.sourceIp
+}
+
+func (t *Target) setTargetIp(ip netip.Addr) {
+	t.targetIp = ip
+}
+func (t *Target) targetip() netip.Addr {
+	return t.targetIp
+}
+
 // 设置源Sock (Private)
 func (t *Target) setSourceSockAddr(sa unix.Sockaddr) error {
 	t.sourceSock = sa
@@ -172,14 +251,23 @@ func (t *Target) setSourceSockAddr(sa unix.Sockaddr) error {
 	if err != nil {
 		return fmt.Errorf("invalid Source_sockaddr :%w", err)
 	}
-	t.source_ip = ip
+	t.sourceIp = ip
 
 	return nil
+}
+
+func (t *Target) setSourceIp(sourceIp netip.Addr) {
+	t.sourceIp = sourceIp
 }
 
 // 设置TargetName (Private)
 func (t *Target) setTargetName(name string) {
 	t.targetname = name
+}
+
+// 查询端口状态
+func (t *Target) getPortInfo(protocol int, port int) uint {
+	return uint(t.PortStates[protocol][port])
 }
 
 // 设置主机名 (Private)
@@ -197,6 +285,11 @@ func (t *Target) setHostname(name string) {
 		bytes[i] = '*'
 	}
 	t.hostnames = string(bytes)
+}
+
+// 设置端口状态
+func (t *Target) setPortInfo(protocol int, port uint, state uint8) {
+	t.PortStates[protocol][port] = state
 }
 
 // --- Helper Functions (Stateless, No Locking needed) ---
@@ -223,4 +316,8 @@ func isAllowedHostnameChar(b byte) bool {
 		return true
 	}
 	return false
+}
+
+func (t *Target) SetStateByPort(protocol int, port uint, state uint8, lookup []int) {
+	t.PortStates[protocol][lookup[port]] = state
 }
