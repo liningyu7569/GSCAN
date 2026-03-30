@@ -11,27 +11,26 @@ import (
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
-	"github.com/jackpal/gateway" // 【新增依赖】用于跨平台获取网关
+	"github.com/jackpal/gateway"
 )
 
-// RouterManager 路由管理器
 type RouterManager struct {
-	// 移除 gopacket/routing 依赖
-	// router routing.Router
-
-	// ARP 缓存
 	arpCache sync.Map
+
+	// 【V2 优化】：全局缓存默认网关，防止 jackpal/gateway 频繁调用 shell 导致性能雪崩
+	defaultGateway net.IP
+	gwOnce         sync.Once
 }
 
 var GlobalRouter *RouterManager
 
 func InitRouter() error {
-	// 不再调用 routing.New()
 	GlobalRouter = &RouterManager{}
 	return nil
 }
 
 type RouteInfo struct {
+	DeviceName   string           // 网卡名称 (Pcap 监听需要)
 	Interface    *net.Interface   // 出口网卡对象
 	SrcIP        net.IP           // 源IP
 	SrcMAC       net.HardwareAddr // 源MAC
@@ -40,35 +39,22 @@ type RouteInfo struct {
 	Direct       bool             // 是否直连
 }
 
-// RouteTo 核心路由解析函数 (跨平台版)
-func (rm *RouterManager) RouteTo(dst net.IP) (*RouteInfo, error) {
-
-	// ---------------------------------------------------------
-	// 步骤 1: 确定出口 IP (Source IP)
-	// ---------------------------------------------------------
-	// 使用 UDP Dial 技巧，让操作系统帮我们选路
-	// 这不会产生实际网络流量
-	conn, err := net.Dial("udp", dst.String()+":80")
+// GetDefaultInterface 获取默认联网的网卡和 IP (供 cmd/root.go 全局 Pcap 监听使用)
+func GetDefaultInterface() *RouteInfo {
+	// 使用 UDP Dial 连接极其稳定的公网地址，强制操作系统走默认路由
+	conn, err := net.Dial("udp", "8.8.8.8:80")
 	if err != nil {
-		return nil, fmt.Errorf("unreachable destination: %v", err)
+		return nil
 	}
 	defer conn.Close()
 
-	// 拿到本机出口 IP
 	localAddr := conn.LocalAddr().(*net.UDPAddr)
 	srcIP := localAddr.IP
 
-	// ---------------------------------------------------------
-	// 步骤 2: 确定出口网卡 (Interface)
-	// ---------------------------------------------------------
-	// 遍历所有网卡，找到拥有这个 IP 的那个
 	interfaces, err := net.Interfaces()
 	if err != nil {
-		return nil, err
+		return nil
 	}
-
-	var ifaceObj *net.Interface
-	var srcNet *net.IPNet // 用于判断是否同网段
 
 	for _, iface := range interfaces {
 		addrs, err := iface.Addrs()
@@ -76,7 +62,48 @@ func (rm *RouterManager) RouteTo(dst net.IP) (*RouteInfo, error) {
 			continue
 		}
 		for _, addr := range addrs {
-			// addr 通常是 *net.IPNet (包含 IP 和 Mask)
+			if ipnet, ok := addr.(*net.IPNet); ok {
+				if ipnet.IP.Equal(srcIP) {
+					return &RouteInfo{
+						DeviceName: iface.Name,
+						Interface:  &iface,
+						SrcIP:      srcIP,
+						SrcMAC:     iface.HardwareAddr,
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// RouteTo 核心路由解析函数 (跨平台高性能版)
+func (rm *RouterManager) RouteTo(dst net.IP) (*RouteInfo, error) {
+	// 1. 确定出口 IP (Source IP)
+	conn, err := net.Dial("udp", dst.String()+":80")
+	if err != nil {
+		return nil, fmt.Errorf("unreachable destination: %v", err)
+	}
+	defer conn.Close()
+
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
+	srcIP := localAddr.IP
+
+	// 2. 确定出口网卡 (Interface)
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return nil, err
+	}
+
+	var ifaceObj *net.Interface
+	var srcNet *net.IPNet
+
+	for _, iface := range interfaces {
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, addr := range addrs {
 			if ipnet, ok := addr.(*net.IPNet); ok {
 				if ipnet.IP.Equal(srcIP) {
 					ifaceObj = &iface
@@ -95,40 +122,38 @@ func (rm *RouterManager) RouteTo(dst net.IP) (*RouteInfo, error) {
 	}
 
 	info := &RouteInfo{
-		Interface: ifaceObj,
-		SrcIP:     srcIP,
-		SrcMAC:    ifaceObj.HardwareAddr,
+		DeviceName: ifaceObj.Name,
+		Interface:  ifaceObj,
+		SrcIP:      srcIP,
+		SrcMAC:     ifaceObj.HardwareAddr,
 	}
 
-	// ---------------------------------------------------------
-	// 步骤 3: 判断下一跳 (Gateway vs Direct)
-	// ---------------------------------------------------------
+	// 3. 判断下一跳 (Gateway vs Direct)
 	var nextHopIP net.IP
 
-	// 判断目标是否在同一网段
 	if srcNet.Contains(dst) {
-		// 直连模式
+		// 直连模式 (同局域网)
 		info.Direct = true
 		info.Gateway = nil
 		nextHopIP = dst
 	} else {
-		// 网关模式
+		// 网关模式 (外网)
 		info.Direct = false
 
-		// 使用 jackpal/gateway 获取默认网关
-		gwIP, err := gateway.DiscoverGateway()
-		if err != nil {
-			// 如果获取失败，且不是同网段，通常意味着网络配置有问题
-			// 或者在某些 VPN 环境下，这里可能需要回退逻辑
-			return nil, fmt.Errorf("discover gateway failed: %v", err)
+		// 【V2 优化】：单例模式获取网关，极大提升扫公网时的性能
+		rm.gwOnce.Do(func() {
+			gwIP, _ := gateway.DiscoverGateway()
+			rm.defaultGateway = gwIP
+		})
+
+		if rm.defaultGateway == nil {
+			return nil, fmt.Errorf("discover gateway failed")
 		}
-		info.Gateway = gwIP
-		nextHopIP = gwIP
+		info.Gateway = rm.defaultGateway
+		nextHopIP = rm.defaultGateway
 	}
 
-	// ---------------------------------------------------------
-	// 步骤 4: 解析下一跳 MAC (Layer 2 ARP)
-	// ---------------------------------------------------------
+	// 4. 解析下一跳 MAC (Layer 2 ARP)
 	mac, err := rm.resolveMAC(ifaceObj, srcIP, ifaceObj.HardwareAddr, nextHopIP)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve MAC for %s: %v", nextHopIP, err)
@@ -138,22 +163,19 @@ func (rm *RouterManager) RouteTo(dst net.IP) (*RouteInfo, error) {
 	return info, nil
 }
 
-// resolveMAC 与之前保持一致，不需要修改
-func (rm *RouterManager) resolveMAC(iface *net.Interface, srcIP net.IP, srcMAC net.HardwareAddr, targetIP net.IP) (net.HardwareAddr, error) {
-	targetIPStr := targetIP.String()
+// resolveMAC 缓存优先的 ARP 解析
+func (rm *RouterManager) resolveMAC(iface *net.Interface, srcIP net.IP, srcMAC net.HardwareAddr, nextHopIP net.IP) (net.HardwareAddr, error) {
+	targetIPStr := nextHopIP.String()
 
-	// 1. 查缓存
 	if val, ok := rm.arpCache.Load(targetIPStr); ok {
 		return val.(net.HardwareAddr), nil
 	}
 
-	// 2. 查不到，执行 ARP 探测
-	mac, err := sendARPRequest(iface, srcIP, srcMAC, targetIP)
+	mac, err := sendARPRequest(iface, srcIP, srcMAC, nextHopIP)
 	if err != nil {
 		return nil, err
 	}
 
-	// 3. 写入缓存
 	rm.arpCache.Store(targetIPStr, mac)
 	return mac, nil
 }

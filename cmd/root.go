@@ -2,12 +2,15 @@ package cmd
 
 import (
 	"Going_Scan/pkg/conf"
+	"Going_Scan/pkg/core"
 	"Going_Scan/pkg/routing"
-	"Going_Scan/pkg/scanner"
+	"context"
 	"fmt"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/spf13/cobra"
 )
@@ -15,8 +18,8 @@ import (
 // rootCmd 代表基础命令
 var rootCmd = &cobra.Command{
 	Use:   "goscan",
-	Short: "GoScan is a high-performance network scanner",
-	Long:  `GoScan is a fast network scanner written in Go, inspired by Nmap.`,
+	Short: "GoScan is a high-performance network core",
+	Long:  `GoScan is a fast network core written in Go, inspired by Nmap.`,
 }
 
 // scanCmd 代表扫描命令
@@ -35,75 +38,104 @@ var scanCmd = &cobra.Command{
 			fmt.Println("Usage: goscan scan [targets] [flags]")
 			os.Exit(1)
 		}
-
-		// 2. 端口解析逻辑
-		// 优先级: PortStr (-p) > FastScan (-F) > TopPorts (--top-ports) > Default (1-1000)
+		//t := time.Now()
+		// 2. 端口解析逻辑 (保留你原有的逻辑)
 		var ports []int
 		var err error
 
 		if conf.GlobalOps.PortStr != "" {
-			// 解析 -p "80,443" 或 "1-100" (这里简化处理，假设是逗号分隔)
-			// 实际项目中建议实现一个更复杂的 ParsePortRange 函数
+
 			ports, err = parsePorts(conf.GlobalOps.PortStr)
 			if err != nil {
-				fmt.Printf("Invalid port specification: %v\n", err)
-				os.Exit(1)
+				fmt.Printf("%s is error for %e \n", conf.GlobalOps.PortStr, err)
 			}
+			//ports = []int{80, 443, 21, 22, 23, 24} // 占位演示
 		} else if conf.GlobalOps.FastScan {
-			// -F: 扫描 Top 100 端口 (这里仅作示例，需定义 Top100 列表)
-			fmt.Println("Fast scan mode enabled (scanning top 100 ports)...")
-			ports = make([]int, 100) // 占位
-			for i := 0; i < 100; i++ {
+			fmt.Println("[*] Fast scan mode enabled (scanning top 100 ports)...")
+			ports = make([]int, 10000)
+			for i := 0; i < 10000; i++ {
 				ports[i] = i + 1
 			}
 		} else if conf.GlobalOps.TopPort > 0 {
-			fmt.Printf("Scanning top %d ports...\n", conf.GlobalOps.TopPort)
-			// 需要实现 TopPort 生成逻辑
-			ports = []int{80, 443} // 占位
+			fmt.Printf("[*] Scanning top %d ports...\n", conf.GlobalOps.TopPort)
+			ports = []int{80, 443} // 占位演示
 		} else {
-			// 默认扫描
-			fmt.Println("No port specified, scanning default 1000 ports...")
-			ports = []int{80, 443, 22, 21} // 占位
+			fmt.Println("[*] No port specified, scanning default ports...")
+			ports = []int{80, 443, 22, 21} // 占位演示
 		}
 
 		// 3. 扫描模式互斥/默认处理
-		// 如果用户没指定任何扫描方式，默认使用 TCP SYN (-sS) (如果是 root) 或 Connect (-sT)
 		if !conf.GlobalOps.Synscan && !conf.GlobalOps.Connectscan && !conf.GlobalOps.Udpscan &&
 			!conf.GlobalOps.Ackscan && !conf.GlobalOps.Windowscan && !conf.GlobalOps.Idlescan {
-			// 这里简单默认为 SYN
 			conf.GlobalOps.Synscan = true
 		}
 
-		// 4. 处理 Idle Scan
-		// 如果设置了代理地址，自动开启 IdleScan 标志
-		if conf.GlobalOps.IdleProxy != "" {
-			conf.GlobalOps.Idlescan = true
-		}
-
-		// 5. 初始化路由和环境
+		// 4. 初始化路由和环境
 		err = routing.InitRouter()
 		if err != nil {
-			fmt.Printf("Routing initialization failed: %v\n", err)
+			fmt.Printf("[-] Routing initialization failed: %v\n", err)
 			os.Exit(1)
 		}
 
-		// 6. 初始化全局端口池并启动扫描
-		// 注意：这里的逻辑应该根据 conf.GlobalOps 自动决定初始化哪些协议
-		// 建议 scanner.Run() 内部去读取 GlobalOps，而不是在这里手动 if-else
+		// =========================================================================
+		// 【V2 架构接入开始】: 废弃旧的 GlobalPorts 初始化，全面启用张量引擎
+		// =========================================================================
 
-		fmt.Println("Starting GoScan...")
+		fmt.Println("[*] Starting Going_Scan V2 Engine...")
 
-		// 示例：传递端口给底层
-		// 实际应该调用 scanner.NewScanner(conf.GlobalOps).Run()
-		if conf.GlobalOps.Synscan || conf.GlobalOps.Connectscan || conf.GlobalOps.Ackscan || conf.GlobalOps.Windowscan {
-			scanner.GlobalPorts.Initialize(ports, scanner.ProtocolTCP)
+		// 5. 获取本机默认出口网卡与 IP (用于 Pcap 监听和构建 BPF 过滤)
+		// 这里假设你的 routing 包有获取默认网卡信息的方法
+		routeInfo := routing.GetDefaultInterface()
+		if routeInfo == nil {
+			fmt.Println("[-] 致命错误: 无法获取本机默认网络接口")
+			os.Exit(1)
 		}
-		if conf.GlobalOps.Udpscan {
-			scanner.GlobalPorts.Initialize(ports, scanner.ProtocolUDP)
-		}
+		localIPStr := routeInfo.SrcIP.String()
+		deviceName := routeInfo.DeviceName
 
-		// 启动核心引擎 (假设有这个入口)
-		scanner.Start()
+		// 6. 初始化底层 Pcap 句柄
+		pcapHandle, err := core.InitPcap(deviceName, localIPStr)
+		if err != nil {
+			fmt.Printf("[-] 致命错误: Pcap 初始化失败 (请确认是否具有 root/管理员权限): %v\n", err)
+			os.Exit(1)
+		}
+		defer pcapHandle.Close() // 确保程序退出时释放网卡句柄
+
+		// 7. 初始化目标迭代器
+		ipIterator, err := conf.GlobalOps.GetTargetIterator()
+		if err != nil {
+			fmt.Printf("[-] IP 解析失败: %v\n", err)
+			os.Exit(1)
+		}
+		conf.ApplyTimingTemplate()
+		// 8. 创建任务张量生成器 (Task Generator)
+		generator := core.NewTaskGenerator(ipIterator, ports)
+
+		// 9. 创建稳态引擎 (Engine)
+		// 设置初始并发 CWND 为 1000 (可根据配置动态调整)
+		//initialCWND := 1000
+		engine := core.NewEngine(pcapHandle)
+
+		// 10. 创建带有取消功能的上下文，并监听系统中断信号 (Ctrl+C)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+		go func() {
+			<-sigChan
+			fmt.Println("\n[!] 捕获到手动中断信号 (Ctrl+C)，正在安全回收探针...")
+			cancel() // 触发 ctx.Done()，引擎会立刻停止下发新任务
+		}()
+
+		totalTasks := int64(ipIterator.Count()) * int64(len(ports))
+		core.InitMetrics(totalTasks)
+		go core.StartMonitor(ctx)
+		go core.StartReporter(ctx)
+		// 11. 引擎点火！阻塞等待直到所有任务完成或被中断
+		engine.Run(ctx, generator)
+
+		fmt.Println("[*] Scan completed.")
 	},
 }
 
@@ -162,7 +194,7 @@ func Execute() {
 }
 
 // 辅助函数：解析简单的端口字符串
-func parsePorts(s string) ([]int, error) {
+func parsePort(s string) ([]int, error) {
 	// 这里只是一个极其简单的实现，实际需要支持 "1-100,200" 这种格式
 	parts := strings.Split(s, ",")
 	var ints []int
@@ -189,4 +221,79 @@ func parsePorts(s string) ([]int, error) {
 		}
 	}
 	return ints, nil
+}
+
+func parsePorts(s string) ([]int, error) {
+	if s == "" {
+		return []int{}, nil
+	}
+
+	// 使用 set 来自动去重
+	portSet := make(map[int]struct{})
+
+	// 分割逗号
+	parts := strings.Split(s, ",")
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+
+		if strings.Contains(part, "-") {
+			// 处理范围：如 1-1000
+			rangeParts := strings.Split(part, "-")
+			if len(rangeParts) != 2 {
+				return nil, fmt.Errorf("无效的范围格式: %q", part)
+			}
+
+			startStr := strings.TrimSpace(rangeParts[0])
+			endStr := strings.TrimSpace(rangeParts[1])
+
+			start, err := strconv.Atoi(startStr)
+			if err != nil {
+				return nil, fmt.Errorf("起始端口无效 %q: %v", startStr, err)
+			}
+
+			end, err := strconv.Atoi(endStr)
+			if err != nil {
+				return nil, fmt.Errorf("结束端口无效 %q: %v", endStr, err)
+			}
+
+			if start < 1 || end < 1 {
+				return nil, fmt.Errorf("端口不能小于1: %d-%d", start, end)
+			}
+
+			if start > end {
+				return nil, fmt.Errorf("范围无效（起点大于终点）: %d-%d", start, end)
+			}
+
+			// 建议加上上限保护，防止误输入 1-10000000 导致内存爆炸
+			if end-start > 100000 { // 可根据实际场景调整
+				return nil, fmt.Errorf("范围过大（%d-%d），超过允许的最大跨度", start, end)
+			}
+
+			for p := start; p <= end; p++ {
+				portSet[p] = struct{}{}
+			}
+		} else {
+			// 单个端口
+			port, err := strconv.Atoi(part)
+			if err != nil {
+				return nil, fmt.Errorf("无效的端口号: %q", part)
+			}
+			if port < 1 || port > 65535 {
+				return nil, fmt.Errorf("端口号超出范围(1-65535): %d", port)
+			}
+			portSet[port] = struct{}{}
+		}
+	}
+
+	// 转为有序切片
+	ports := make([]int, 0, len(portSet))
+	for p := range portSet {
+		ports = append(ports, p)
+	}
+	//sort.Ints(ports)
+
+	return ports, nil
 }

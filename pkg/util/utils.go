@@ -1,6 +1,7 @@
-package ulit
+package util
 
 import (
+	"encoding/binary"
 	"fmt"
 	"golang.org/x/sys/unix"
 	"net"
@@ -39,4 +40,20 @@ func StdIPToNetip(ip net.IP) (netip.Addr, error) {
 
 func NetipToStdIP(addr netip.Addr) net.IP {
 	return net.IP(addr.AsSlice())
+}
+
+// IPToUint32 将 net.IP 转换为 uint32 (大端序)
+func IPToUint32(ip net.IP) uint32 {
+	ip = ip.To4()
+	if ip == nil {
+		return 0
+	}
+	return binary.BigEndian.Uint32(ip)
+}
+
+// Uint32ToIP 将 uint32 转回 net.IP
+func Uint32ToIP(nn uint32) net.IP {
+	ip := make(net.IP, 4)
+	binary.BigEndian.PutUint32(ip, nn)
+	return ip
 }

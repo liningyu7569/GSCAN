@@ -10,6 +10,7 @@ import (
 
 type Iterator interface {
 	Next() net.IP
+	Count() uint64
 }
 
 type Container struct {
@@ -21,6 +22,7 @@ type Container struct {
 // 获取下一个IP的接口
 type Generator interface {
 	Next() net.IP
+	Count() uint64
 }
 
 // IP初始化
@@ -72,12 +74,35 @@ func (c *Container) Next() net.IP {
 	}
 }
 
+func (c *Container) Count() uint64 {
+	var total uint64
+	for _, gen := range c.generator {
+		if gen == nil {
+			continue
+		}
+		total += gen.Count()
+	}
+
+	if len(c.excludeMap) == 0 {
+		return total
+	}
+
+	// 粗粒度扣减：仅扣除显式排除的单个 IP。
+	for exclude := range c.excludeMap {
+		if net.ParseIP(exclude) != nil && total > 0 {
+			total--
+		}
+	}
+
+	return total
+}
+
 // 选择解析函数
 func selectStrategy(input string) (Generator, error) {
 	if strings.Contains(input, "/") {
-		return nil, nil
+		return newLCGCIDRGen(input)
 	} else if strings.Contains(input, "-") {
-		return newRangeGen(input)
+		return newLCGRangeGen(input)
 	} else {
 		return newSingleGen(input)
 	}
@@ -104,6 +129,10 @@ func (g *singleGen) Next() net.IP {
 	}
 	g.done = true
 	return g.ip
+}
+
+func (g *singleGen) Count() uint64 {
+	return 1
 }
 
 // 范围IP
@@ -139,4 +168,51 @@ func (g *rangeGen) Next() net.IP {
 	binary.BigEndian.PutUint32(ip, g.curr)
 	g.curr++
 	return ip
+}
+
+func (g *rangeGen) Count() uint64 {
+	return uint64(g.end-g.start) + 1
+}
+
+type cidrGen struct {
+	start uint32
+	end   uint32
+	curr  uint32
+}
+
+func newCIDRGen(s string) (*cidrGen, error) {
+	ip, ipNet, err := net.ParseCIDR(s)
+	if err != nil {
+		return nil, err
+	}
+
+	v4 := ip.To4()
+	if v4 == nil {
+		return nil, fmt.Errorf("only IPv4 CIDR is currently supported: %s", s)
+	}
+
+	mask := binary.BigEndian.Uint32(ipNet.Mask)
+	start := binary.BigEndian.Uint32(v4) & mask
+	end := start | ^mask
+
+	return &cidrGen{
+		start: start,
+		end:   end,
+		curr:  start,
+	}, nil
+}
+
+func (g *cidrGen) Next() net.IP {
+	if g.curr > g.end {
+		return nil
+	}
+
+	ip := make(net.IP, 4)
+	binary.BigEndian.PutUint32(ip, g.curr)
+	g.curr++
+	return ip
+}
+
+func (g *cidrGen) Count() uint64 {
+	return uint64(g.end-g.start) + 1
 }

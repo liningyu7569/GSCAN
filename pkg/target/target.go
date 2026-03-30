@@ -1,7 +1,7 @@
 package target
 
 import (
-	"Going_Scan/pkg/ulit"
+	"Going_Scan/pkg/util"
 	"errors"
 	"fmt"
 	"golang.org/x/sys/unix"
@@ -147,18 +147,18 @@ func (t *Target) SetSourcetIp(ip netip.Addr) {
 func (t *Target) SetRouteInfo(iface *net.Interface, srcIP net.IP, srcMAC net.HardwareAddr, gateway net.IP, direct bool) {
 	var err error
 	t.Iface = iface
-	t.sourceIp, err = ulit.StdIPToNetip(srcIP)
+	t.sourceIp, err = util.StdIPToNetip(srcIP)
 	if err != nil {
-		fmt.Errorf("SrcIP to netip.Addr is error for %e", err)
+		log.Printf("SrcIP to netip.Addr error: %v", err)
 	}
 	t.SrcMac = srcMAC
 	t.DirectylConnected = direct
 	if direct {
 		t.NexthopeIp = t.targetIp
 	} else {
-		t.NexthopeIp, err = ulit.StdIPToNetip(gateway)
+		t.NexthopeIp, err = util.StdIPToNetip(gateway)
 		if err != nil {
-			fmt.Errorf("NexrHopeIp_Gateway to netip.Addr is error for %e", err)
+			log.Printf("NextHop gateway to netip.Addr error: %v", err)
 		}
 	}
 }
@@ -188,7 +188,7 @@ func (t *Target) SetHostname(name string) {
 func (t *Target) GetPortInfo(protocol int, port int) uint {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	return t.GetPortInfo(protocol, port)
+	return t.getPortInfo(protocol, port)
 }
 
 // 初始化端口状态数组

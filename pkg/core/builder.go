@@ -1,8 +1,8 @@
-package scanner
+package core
 
 import (
 	"Going_Scan/pkg/conf"
-	"Going_Scan/pkg/ulit"
+	"Going_Scan/pkg/util"
 	"fmt"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
@@ -47,8 +47,8 @@ func ConstructRawPacket(task SendTask) ([]byte, error) {
 		return nil, fmt.Errorf("unsupported protocol: %d", task.Protocol)
 	}
 	ip := &layers.IPv4{
-		SrcIP:    ulit.NetipToStdIP(task.SrcIP),
-		DstIP:    ulit.NetipToStdIP(task.Target.TargetIpAddr()),
+		SrcIP:    util.NetipToStdIP(task.SrcIP),
+		DstIP:    util.NetipToStdIP(task.Target.TargetIpAddr()),
 		Version:  4,
 		TTL:      64,
 		Id:       uint16(task.Seq & 0xFFFF),

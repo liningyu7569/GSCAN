@@ -1,84 +1,66 @@
 package conf
 
-import "time"
+// 假设 GlobalOps 已经包含你提供的 MinParallelism, MaxParallelism, MaxRetries 等字段
 
-// TimingParams 定义了扫描的时间和并发参数
-type TimingParams struct {
-	InitialCwnd      float64       // 初始并发窗口
-	MinCwnd          float64       // 最小并发窗口 (死活不能低于这个)
-	MaxScanDelay     time.Duration // 最大发包延迟 (死活不能高于这个)
-	MaxRTO           time.Duration // 最大超时时间 (超过这个时间还没回包就认为丢了)
-	MinRTO           time.Duration // 最小超时时间
-	MaxRetries       int           // 最大重传次数
-	IgnoreCongestion bool          // 是否完全忽略拥塞控制 (T5)
+func ApplyTimingTemplate() {
+	// 如果用户通过命令行明确指定了参数，则跳过覆盖；此处演示基础逻辑
+	switch GlobalOps.TimingLevel {
+	case 1: // T1 (潜行模式) - 极低并发，高重传，长等待。严格遵守 AIMD。
+		setDefault(&GlobalOps.MinParallelism, 1)
+		setDefault(&GlobalOps.MaxParallelism, 10)
+		setDefault(&GlobalOps.MaxRetries, 3)
+		setDefault(&GlobalOps.MaxRTTTimeout, 5000)
+		setDefaultFloat(&GlobalOps.MaxPacketSendRate, 50)
+		// 初始 RTO 强制拉高
+	case 2: // T2 (温和模式) - 低并发，中等重传。
+		setDefault(&GlobalOps.MinParallelism, 10)
+		setDefault(&GlobalOps.MaxParallelism, 100)
+		setDefault(&GlobalOps.MaxRetries, 2)
+		setDefault(&GlobalOps.MaxRTTTimeout, 2000)
+		setDefaultFloat(&GlobalOps.MaxPacketSendRate, 200)
+	case 3: // T3 (普通模式) - 默认均衡状态。
+		setDefault(&GlobalOps.MinParallelism, 100)
+		setDefault(&GlobalOps.MaxParallelism, 1000)
+		setDefault(&GlobalOps.MaxRetries, 1)
+		setDefault(&GlobalOps.MaxRTTTimeout, 1000)
+		setDefaultFloat(&GlobalOps.MaxPacketSendRate, 1000)
+	case 4: // T4 (激进模式) - 高并发，无视静默包，关闭 AIMD 乘性减。
+		setDefault(&GlobalOps.MinParallelism, 512)
+		setDefault(&GlobalOps.MaxParallelism, 4096)
+		setDefault(&GlobalOps.MaxRetries, 1)
+		setDefault(&GlobalOps.MaxRTTTimeout, 800)
+		setDefaultFloat(&GlobalOps.MaxPacketSendRate, 3000)
+	case 5: // T5 (极限模式) - 硬件物理极限，绝对静态并发，零重传，极短超时。
+		setDefault(&GlobalOps.MinParallelism, 1024)
+		setDefault(&GlobalOps.MaxParallelism, 8192)
+		setDefault(&GlobalOps.MaxRetries, 1)
+		setDefault(&GlobalOps.MaxRTTTimeout, 600)
+		setDefaultFloat(&GlobalOps.MaxPacketSendRate, 6000)
+	default:
+		GlobalOps.TimingLevel = 3
+		ApplyTimingTemplate()
+		return
+	}
+
+	if GlobalOps.MaxParallelism < GlobalOps.MinParallelism {
+		GlobalOps.MaxParallelism = GlobalOps.MinParallelism
+	}
+	if GlobalOps.MaxRTTTimeout <= 0 {
+		GlobalOps.MaxRTTTimeout = 1000
+	}
+	if GlobalOps.MaxRetries < 0 {
+		GlobalOps.MaxRetries = 0
+	}
 }
 
-// GetTimingConfig 根据 TimingLevel (0-5) 返回具体的配置
-func GetTimingConfig() TimingParams {
-	// 默认 T3
-	level := GlobalOps.TimingLevel
+func setDefault(target *int, value int) {
+	if *target == 0 {
+		*target = value
+	}
+}
 
-	switch level {
-	case 0: // T0: Paranoid (极度偏执，用于避开 IDS)
-		return TimingParams{
-			InitialCwnd:      1.0,
-			MinCwnd:          1.0,
-			MaxScanDelay:     5 * time.Minute, // 极其慢
-			MaxRTO:           5 * time.Minute,
-			MinRTO:           1 * time.Minute, // 甚至可以串行
-			MaxRetries:       10,              // 既然这么慢，就多试几次
-			IgnoreCongestion: false,
-		}
-	case 1: // T1: Sneaky (偷偷摸摸)
-		return TimingParams{
-			InitialCwnd:      1.0,
-			MinCwnd:          1.0,
-			MaxScanDelay:     15 * time.Second,
-			MaxRTO:           15 * time.Second,
-			MinRTO:           1 * time.Second,
-			MaxRetries:       10,
-			IgnoreCongestion: false,
-		}
-	case 2: // T2: Polite (礼貌模式，少占带宽)
-		return TimingParams{
-			InitialCwnd:      1.0,
-			MinCwnd:          1.0,
-			MaxScanDelay:     400 * time.Millisecond,
-			MaxRTO:           1000 * time.Millisecond,
-			MinRTO:           100 * time.Millisecond,
-			MaxRetries:       10,
-			IgnoreCongestion: false,
-		}
-	case 4: // T4: Aggressive (激进模式 - 推荐用于现代网络)
-		// 这是解决你"卡顿"问题的关键档位
-		return TimingParams{
-			InitialCwnd:      10.0,                    // 起步就发 10 个
-			MinCwnd:          10.0,                    // 哪怕丢包，并发也不低于 10
-			MaxScanDelay:     10 * time.Millisecond,   // 延迟最多 10ms，几乎无感
-			MaxRTO:           1250 * time.Millisecond, // 超时上限 1.25s
-			MinRTO:           100 * time.Millisecond,
-			MaxRetries:       2, // 失败了别纠结，重试 2 次够了
-			IgnoreCongestion: false,
-		}
-	case 5: // T5: Insane (疯狗模式 - 牺牲准确性换速度)
-		return TimingParams{
-			InitialCwnd:      50.0,
-			MinCwnd:          75.0,
-			MaxScanDelay:     5 * time.Millisecond,
-			MaxRTO:           300 * time.Millisecond, // 300ms 没回就当死了
-			MinRTO:           50 * time.Millisecond,
-			MaxRetries:       1,    // 只重试 1 次
-			IgnoreCongestion: true, // 无视拥塞，全速发
-		}
-	default: // T3: Normal (默认平衡)
-		return TimingParams{
-			InitialCwnd:      10.0,                    // Nmap 默认初始也比较保守，但我们可以设高点
-			MinCwnd:          1.0,                     // 允许降到 1
-			MaxScanDelay:     1000 * time.Millisecond, // 允许等待 1 秒
-			MaxRTO:           1000 * time.Millisecond, // 动态 RTO
-			MinRTO:           100 * time.Millisecond,
-			MaxRetries:       3,
-			IgnoreCongestion: false,
-		}
+func setDefaultFloat(target *float32, value float32) {
+	if *target == 0 {
+		*target = value
 	}
 }
