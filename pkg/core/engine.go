@@ -1,6 +1,7 @@
 package core
 
 import (
+	"Going_Scan/pkg/util"
 	"context"
 	"encoding/binary"
 	"fmt"
@@ -16,7 +17,12 @@ import (
 	"github.com/google/gopacket/pcap"
 )
 
-const MaxCWNDLimit = 60000
+// --- 测试功能专用变量 (用完可注释) ---
+var testOpenPorts sync.Map
+
+// ------------------------------------
+
+const MaxCWNDLimit = 20000
 
 // 强制扩容至 128 字节，防止 TCP Options 注入时发生物理越界
 var taskBufferPool = sync.Pool{
@@ -28,7 +34,7 @@ var taskBufferPool = sync.Pool{
 
 // 实例化全局 L7 任务转接队列与分片指标池
 var (
-	GlobalResultBuffer  = queue.NewLockFreeRingBuffer(65536)
+	GlobalResultBuffer  = queue.NewLockFreeRingBuffer[queue.ScanResult](65536)
 	MetricPacketsSent   metrics.ShardedMetrics
 	MetricPacketsMatch  metrics.ShardedMetrics
 	MetricDispatchDrops metrics.ShardedMetrics
@@ -60,7 +66,8 @@ func NewEngine(handle *pcap.Handle) *Engine {
 	if conf.GlobalOps.MaxParallelism <= 0 || conf.GlobalOps.MaxParallelism > MaxCWNDLimit {
 		conf.GlobalOps.MaxParallelism = MaxCWNDLimit
 	}
-	GlobalResultBuffer = queue.NewLockFreeRingBuffer(65536)
+	initHDFilter()
+	GlobalResultBuffer = queue.NewLockFreeRingBuffer[queue.ScanResult](65536)
 	MetricPacketsSent = metrics.ShardedMetrics{}
 	MetricPacketsMatch = metrics.ShardedMetrics{}
 	MetricDispatchDrops = metrics.ShardedMetrics{}
@@ -109,6 +116,7 @@ func NewEngine(handle *pcap.Handle) *Engine {
 
 func (e *Engine) Run(ctx context.Context, generator *TaskGenerator) {
 	var wg sync.WaitGroup
+	//var exhausted = false
 
 	go e.runSendPacer(ctx)
 	// 启动 L4 Pcap 物理接收流
@@ -127,10 +135,24 @@ Loop:
 		default:
 		}
 
-		tasks := generator.GenerateBatch()
-		if len(tasks) == 0 {
-			break Loop
+		tasks, isDone := generator.GenerateBatch()
+
+		if isDone {
+			//exhausted = true
+			// 关键点：如果任务耗尽且没有正在飞行的探针，说明真的结束了
+			if atomic.LoadInt32(&e.activeProbes) == 0 {
+				fmt.Println("[Engine] 所有任务分发完毕，且无在途探针，准备退出...")
+				break Loop
+			}
+			// 还有探针在飞，或者蓄水池可能随时被 Dispatcher 填入新 IP
+			// 此时引擎进入低功耗休眠，等待回包触发蓄水池
+			time.Sleep(10 * time.Millisecond)
+			continue
 		}
+
+		//if len(tasks) == 0 {
+		//	break Loop
+		//}
 
 		for _, task := range tasks {
 			select {
@@ -159,7 +181,17 @@ Loop:
 		tailWait = 1000 // 最小保底等待 1 秒
 	}
 	time.Sleep(time.Duration(tailWait) * time.Millisecond)
-
+	//for j := range TestIP {
+	//	fmt.Printf(TestIP[j].String() + " - ")
+	//}
+	// --- 测试功能：输出所有开放端口 (用完可注释) ---
+	fmt.Println("\n====== [Test] Discovered Open Ports ======")
+	testOpenPorts.Range(func(key, value interface{}) bool {
+		fmt.Printf("=> %s\n", key)
+		return true // 继续遍历
+	})
+	fmt.Println("==========================================")
+	// ----------------------------------------------
 	fmt.Println("[Engine] 所有探测任务已安全结束。")
 	e.printReport()
 }
@@ -243,6 +275,22 @@ func (e *Engine) LaunchProbe(ctx context.Context, channelID uint16, task Emissio
 			rttMilliseconds := int64(time.Since(timerStartTime).Milliseconds())
 			e.updateRTO(rttMilliseconds)
 
+			if task.IsHostDiscovery {
+				if resultTensor.IsHostAlive(task.Protocol) {
+					if markAlive(task.TargetIP) {
+						ipStr := util.Uint32ToIP(task.TargetIP).String()
+						fmt.Printf(ipStr + " is alive\n")
+						for !HDReservoir.Push(task.TargetIP) {
+							if ctx.Err() != nil {
+								return
+							}
+							runtime.Gosched()
+						}
+					}
+				}
+				break
+			}
+
 			isOpen := false
 			if task.Protocol == syscall.IPPROTO_TCP && resultTensor.IsTCPStateOpen() {
 				isOpen = true
@@ -253,6 +301,10 @@ func (e *Engine) LaunchProbe(ctx context.Context, channelID uint16, task Emissio
 			if isOpen {
 				MetricOpenPorts.Add(uint64(channelID), 1)
 
+				// --- 测试功能：记录开放端口 (用完可注释) ---
+				ipStr := util.Uint32ToIP(task.TargetIP).String()
+				testOpenPorts.Store(fmt.Sprintf("%s:%d", ipStr, task.TargetPort), struct{}{})
+				// ------------------------------------------
 				res := queue.ScanResult{
 					IP:       task.TargetIP,
 					Port:     task.TargetPort,

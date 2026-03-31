@@ -12,12 +12,14 @@ type ScanResult struct {
 	Protocol uint8
 }
 
-type slot struct {
+// 使用泛型 T 替代写死的 ScanResult
+type slot[T any] struct {
 	sequence uint64
-	data     ScanResult
+	data     T
 }
 
-type LockFreeRingBuffer struct {
+// LockFreeRingBuffer 支持任意类型的无锁环形队列
+type LockFreeRingBuffer[T any] struct {
 	capacity uint64
 	mask     uint64
 	_pad0    [56]byte // 隔离底层元数据，防止与 head 发生伪共享
@@ -25,18 +27,18 @@ type LockFreeRingBuffer struct {
 	_pad1    [56]byte // 隔离 head 与 tail
 	tail     uint64
 	_pad2    [56]byte
-	buffer   []slot
+	buffer   []slot[T]
 }
 
 // NewLockFreeRingBuffer 初始化，capacity 必须是 2 的幂
-func NewLockFreeRingBuffer(capacity uint64) *LockFreeRingBuffer {
+func NewLockFreeRingBuffer[T any](capacity uint64) *LockFreeRingBuffer[T] {
 	if capacity&(capacity-1) != 0 {
 		panic("capacity 必须是 2 的幂")
 	}
-	rb := &LockFreeRingBuffer{
+	rb := &LockFreeRingBuffer[T]{
 		capacity: capacity,
 		mask:     capacity - 1,
-		buffer:   make([]slot, capacity),
+		buffer:   make([]slot[T], capacity),
 	}
 	for i := uint64(0); i < capacity; i++ {
 		rb.buffer[i].sequence = i
@@ -45,8 +47,8 @@ func NewLockFreeRingBuffer(capacity uint64) *LockFreeRingBuffer {
 }
 
 // Push 扫描探针（生产者）调用。使用 CAS 获取写入槽位，无阻塞。
-func (rb *LockFreeRingBuffer) Push(data ScanResult) bool {
-	var cell *slot
+func (rb *LockFreeRingBuffer[T]) Push(data T) bool {
+	var cell *slot[T]
 	var pos uint64
 	for {
 		pos = atomic.LoadUint64(&rb.head)
@@ -74,8 +76,8 @@ func (rb *LockFreeRingBuffer) Push(data ScanResult) bool {
 }
 
 // Pop 消费者协程调用（批处理模块）。
-func (rb *LockFreeRingBuffer) Pop(data *ScanResult) bool {
-	var cell *slot
+func (rb *LockFreeRingBuffer[T]) Pop(data *T) bool {
+	var cell *slot[T]
 	var pos uint64
 	for {
 		pos = atomic.LoadUint64(&rb.tail)

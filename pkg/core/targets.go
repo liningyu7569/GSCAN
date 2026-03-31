@@ -2,11 +2,13 @@ package core
 
 import (
 	"Going_Scan/pkg/conf"
+	"Going_Scan/pkg/queue"
 	"Going_Scan/pkg/routing"
 	"Going_Scan/pkg/target"
 	"Going_Scan/pkg/util"
 	"fmt"
 	"net"
+	"sync"
 	"syscall"
 )
 
@@ -19,6 +21,40 @@ type TaskGenerator struct {
 	// 提前固化的全局协议参数
 	baseProtocol  uint8
 	baseScanFlags uint8
+}
+
+const shardCount = 256
+
+type hdShard struct {
+	sync.Mutex
+	m map[uint32]struct{}
+}
+
+var (
+	hdFilter    [shardCount]*hdShard
+	HDReservoir = queue.NewLockFreeRingBuffer[uint32](65536)
+	TestIP      []net.IP
+)
+
+// 初始化分片
+func initHDFilter() {
+	for i := 0; i < shardCount; i++ {
+		hdFilter[i] = &hdShard{m: make(map[uint32]struct{})}
+	}
+
+}
+
+// markAlive 查重并标记，如果是首次发现则返回 true
+func markAlive(ip uint32) bool {
+	shard := hdFilter[ip%shardCount]
+	shard.Lock()
+	defer shard.Unlock()
+
+	if _, exists := shard.m[ip]; exists {
+		return false // 已经标记过存活，去重
+	}
+	shard.m[ip] = struct{}{}
+	return true // 首次发现存活
 }
 
 // NewTaskGenerator 读取 conf.GlobalOps，固化本次扫描的协议策略
@@ -48,30 +84,90 @@ func NewTaskGenerator(iter target.Iterator, ports []int) *TaskGenerator {
 
 	return gen
 }
-func (g *TaskGenerator) GenerateBatch() []EmissionTask {
+func (g *TaskGenerator) GenerateBatch() ([]EmissionTask, bool) {
+
+	// 1. 检查探活开关 (类似 Nmap 的 -Pn)
+	if conf.GlobalOps.SkipHostDiscovery {
+		// 跳过探活，直接从迭代器拿 IP 生成端口扫描任务
+		rawIP := g.ipIterator.Next()
+		if rawIP == nil {
+			return nil, true
+		}
+		return g.generatePortScanTasks(util.IPToUint32(rawIP)), false
+	}
+
+	var aliveIP uint32
+	if HDReservoir.Pop(&aliveIP) {
+		return g.generatePortScanTasks(aliveIP), false
+	}
 	rawIP := g.ipIterator.Next()
-	if rawIP == nil {
-		return nil
+	TestIP = append(TestIP, rawIP)
+	if rawIP != nil {
+		return g.generateHostDiscoveryTasks(util.IPToUint32(rawIP), rawIP), false
 	}
+	return nil, true
+	//
+	//routeID, err := g.resolveAndCacheRoute(rawIP)
+	//if err != nil {
+	//	fmt.Printf("警告: 主机不可达或无法解析路由 %s: %v\n", rawIP.String(), err)
+	//	return g.GenerateBatch()
+	//}
+	//
+	//tasks := make([]EmissionTask, 0, len(g.ports))
+	//for _, port := range g.ports {
+	//	tasks = append(tasks, EmissionTask{
+	//		TargetIP:   targetIPUint32,
+	//		TargetPort: uint16(port),
+	//		RouteID:    routeID,
+	//		Protocol:   g.baseProtocol,
+	//		ScanFlags:  g.baseScanFlags,
+	//	})
+	//}
+	//return tasks
+}
 
-	targetIPUint32 := util.IPToUint32(rawIP)
-
-	routeID, err := g.resolveAndCacheRoute(rawIP)
-	if err != nil {
-		fmt.Printf("警告: 主机不可达或无法解析路由 %s: %v\n", rawIP.String(), err)
-		return g.GenerateBatch()
-	}
+// generatePortScanTasks 生成真正的端口扫描弹药
+func (g *TaskGenerator) generatePortScanTasks(targetIPUint32 uint32) []EmissionTask {
+	rawIP := util.Uint32ToIP(targetIPUint32)
+	routeID, _ := g.resolveAndCacheRoute(rawIP)
 
 	tasks := make([]EmissionTask, 0, len(g.ports))
 	for _, port := range g.ports {
 		tasks = append(tasks, EmissionTask{
-			TargetIP:   targetIPUint32,
-			TargetPort: uint16(port),
-			RouteID:    routeID,
-			Protocol:   g.baseProtocol,
-			ScanFlags:  g.baseScanFlags,
+			TargetIP:        targetIPUint32,
+			TargetPort:      uint16(port),
+			RouteID:         routeID,
+			Protocol:        g.baseProtocol,
+			ScanFlags:       g.baseScanFlags,
+			IsHostDiscovery: false, // 标记为真实扫描
 		})
 	}
+	return tasks
+}
+
+func (g *TaskGenerator) generateHostDiscoveryTasks(targetIPUint32 uint32, rawIP net.IP) []EmissionTask {
+	routeID, _ := g.resolveAndCacheRoute(rawIP)
+	tasks := make([]EmissionTask, 0, 2)
+
+	// 探针 A: ICMP
+	tasks = append(tasks, EmissionTask{
+		TargetIP:        targetIPUint32,
+		TargetPort:      0,
+		RouteID:         routeID,
+		Protocol:        1,    // ICMP
+		IsHostDiscovery: true, // 打上探活标记
+	})
+
+	// 探针 B: TCP 80
+	tasks = append(tasks, EmissionTask{
+		TargetIP:        targetIPUint32,
+		TargetPort:      80,
+		RouteID:         routeID,
+		Protocol:        syscall.IPPROTO_TCP,
+		ScanFlags:       0x02, // SYN
+		IsHostDiscovery: true,
+	})
+
 	return tasks
 }
 

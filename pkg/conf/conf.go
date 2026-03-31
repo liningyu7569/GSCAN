@@ -58,6 +58,8 @@ type GlobalConfig struct {
 	SourcePort int // -g / --source-port
 
 	NumDecoys int // -D
+
+	SkipHostDiscovery bool //Pn
 }
 
 func (g *GlobalConfig) Af() int {
@@ -65,8 +67,9 @@ func (g *GlobalConfig) Af() int {
 }
 
 var GlobalOps = &GlobalConfig{
-	InputS:     make([]string, 0),
-	ExcludeStr: "",
+	InputS:            make([]string, 0),
+	ExcludeStr:        "",
+	SkipHostDiscovery: false,
 }
 
 func (g *GlobalConfig) GetTargetIterator() (target.Iterator, error) {
