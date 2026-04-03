@@ -21,7 +21,7 @@ func ApplyTimingTemplate() {
 	case 3: // T3 (普通模式) - 默认均衡状态。
 		setDefault(&GlobalOps.MinParallelism, 100)
 		setDefault(&GlobalOps.MaxParallelism, 1000)
-		setDefault(&GlobalOps.MaxRetries, 1)
+		setDefault(&GlobalOps.MaxRetries, 2)
 		setDefault(&GlobalOps.MaxRTTTimeout, 1000)
 		setDefaultFloat(&GlobalOps.MaxPacketSendRate, 1000)
 	case 4: // T4 (激进模式) - 高并发，无视静默包，关闭 AIMD 乘性减。

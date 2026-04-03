@@ -6,6 +6,7 @@ import (
 	"Going_Scan/pkg/routing"
 	"Going_Scan/pkg/target"
 	"Going_Scan/pkg/util"
+
 	"fmt"
 	"net"
 	"sync"
@@ -170,36 +171,45 @@ func (g *TaskGenerator) generateHostDiscoveryTasks(targetIPUint32 uint32, rawIP 
 
 	return tasks
 }
-
-// resolveAndCacheRoute 处理最棘手的 MAC 地址和网关问题
 func (g *TaskGenerator) resolveAndCacheRoute(targetIP net.IP) (uint16, error) {
-	// 简单缓存策略：可以根据目标 IP 或子网做 Cache Key
-	// 如果是外网 IP，很多时候都走默认网关，可以极大节省解析时间
-	// 这里为了演示，我们假设每次调用你之前的 routing.GlobalRouter
-
+	// 1. 调用系统路由表查找下一跳
 	routeInfo, err := routing.GlobalRouter.RouteTo(targetIP)
 	if err != nil {
 		return 0, err
 	}
 
-	// 检查是否在之前的解析中已经存过一模一样的路由信息
-	cacheKey := fmt.Sprintf("%s_%s", routeInfo.SrcMAC.String(), routeInfo.HardwareAddr.String())
+	cacheKey := fmt.Sprintf("%s_%s", routeInfo.Interface.Name, targetIP.String())
 	if id, exists := g.routeMap[cacheKey]; exists {
 		return id, nil
 	}
 
-	// 如果是一个全新的路由路径，将其加入全局只读缓存
 	meta := RouteMeta{
 		SrcIP: util.IPToUint32(routeInfo.SrcIP),
 	}
 	copy(meta.SrcMAC[:], routeInfo.SrcMAC)
 
+	// 2. 核心跨平台兼容逻辑：系统给了 MAC 就用，没给就主动发 ARP 去要！
+	var dstMAC net.HardwareAddr
 	if routeInfo.HardwareAddr != nil {
-		copy(meta.DstMAC[:], routeInfo.HardwareAddr)
+		dstMAC = routeInfo.HardwareAddr
 	} else {
-		// 这里处理 ARP 失败的情况
-		return 0, fmt.Errorf("ARP resolution failed")
+		// 确定下一跳 IP (如果是内网，下一跳就是目标；如果是公网，下一跳是网关)
+		nextHopIP := routeInfo.Gateway
+		if nextHopIP == nil {
+			nextHopIP = targetIP
+		}
+
+		fmt.Printf("[*] 系统路由缓存未命中，启动主动 ARP 探测获取 %s 的 MAC...\n", nextHopIP.String())
+
+		// 调用我们刚写的跨平台主动 ARP 函数
+		mac, err := routing.ActiveARPResolution(routeInfo.Interface.Name, routeInfo.SrcIP, routeInfo.SrcMAC, nextHopIP)
+		if err != nil {
+			return 0, fmt.Errorf("无法解析下一跳 MAC: %v", err)
+		}
+		dstMAC = mac
 	}
+
+	copy(meta.DstMAC[:], dstMAC)
 
 	GlobalRouteCache = append(GlobalRouteCache, meta)
 	newRouteID := uint16(len(GlobalRouteCache) - 1)
