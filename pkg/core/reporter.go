@@ -9,7 +9,7 @@ import (
 )
 
 // ScanResult 是未来横向拓展的核心数据结构
-type ScanResult struct {
+type ScanResults struct {
 	IP       uint32
 	Port     uint16
 	Protocol uint8  // TCP, UDP, ICMP
@@ -22,7 +22,7 @@ type ScanResult struct {
 }
 
 // ResultStream 全局异步结果流
-var ResultStream = make(chan ScanResult, 10000)
+var ResultStreams = make(chan ScanResult, 10000)
 
 // StartReporter 启动后台结果消费引擎
 func StartReporter(ctx context.Context) {

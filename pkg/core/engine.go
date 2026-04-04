@@ -18,7 +18,7 @@ import (
 )
 
 // --- 测试功能专用变量 (用完可注释) ---
-var testOpenPorts sync.Map
+//var testOpenPorts sync.Map
 
 // ------------------------------------
 
@@ -55,6 +55,8 @@ type Engine struct {
 	currentCapacity int32
 	activeProbes    int32
 	pcapHandle      *pcap.Handle
+
+	l4Finished int32
 }
 
 func NewEngine(handle *pcap.Handle) *Engine {
@@ -185,15 +187,17 @@ Loop:
 	//	fmt.Printf(TestIP[j].String() + " - ")
 	//}
 	// --- 测试功能：输出所有开放端口 (用完可注释) ---
-	fmt.Println("\n====== [Test] Discovered Open Ports ======")
-	testOpenPorts.Range(func(key, value interface{}) bool {
-		fmt.Printf("=> %s\n", key)
-		return true // 继续遍历
-	})
-	fmt.Println("==========================================")
+	//fmt.Println("\n====== [Test] Discovered Open Ports ======")
+	//testOpenPorts.Range(func(key, value interface{}) bool {
+	//	fmt.Printf("=> %s\n", key)
+	//	return true // 继续遍历
+	//})
+	//fmt.Println("==========================================")
 	// ----------------------------------------------
+
+	atomic.StoreInt32(&e.l4Finished, 1)
 	fmt.Println("[Engine] 所有探测任务已安全结束。")
-	e.printReport()
+	//e.printReport()
 }
 
 func (e *Engine) LaunchProbe(ctx context.Context, channelID uint16, task EmissionTask) {
@@ -302,8 +306,8 @@ func (e *Engine) LaunchProbe(ctx context.Context, channelID uint16, task Emissio
 				MetricOpenPorts.Add(uint64(channelID), 1)
 
 				// --- 测试功能：记录开放端口 (用完可注释) ---
-				ipStr := util.Uint32ToIP(task.TargetIP).String()
-				testOpenPorts.Store(fmt.Sprintf("%s:%d", ipStr, task.TargetPort), struct{}{})
+				//ipStr := util.Uint32ToIP(task.TargetIP).String()
+				//testOpenPorts.Store(fmt.Sprintf("%s:%d", ipStr, task.TargetPort), struct{}{})
 				// ------------------------------------------
 				res := queue.ScanResult{
 					IP:       task.TargetIP,
@@ -401,7 +405,7 @@ func (e *Engine) RunDispatcher(ctx context.Context) {
 }
 
 // RunL7Dispatcher L7 侧唯一消费者。死循环抽水机。
-func (e *Engine) RunL7Dispatcher(ctx context.Context) {
+func (e *Engine) RunL7Dispatcher_(ctx context.Context) {
 	var result queue.ScanResult
 	for {
 		select {
@@ -667,4 +671,9 @@ func (e *Engine) printReport() {
 			stats.PacketsReceived, stats.PacketsDropped, stats.PacketsIfDropped)
 	}
 	fmt.Printf("===================================================\n")
+}
+
+// isL4Finished 供 L7 Dispatcher 查询 L4 是否已经彻底收工
+func (e *Engine) isL4Finished() bool {
+	return atomic.LoadInt32(&e.l4Finished) == 1
 }

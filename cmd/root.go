@@ -3,6 +3,7 @@ package cmd
 import (
 	"Going_Scan/pkg/conf"
 	"Going_Scan/pkg/core"
+	"Going_Scan/pkg/l7"
 	"Going_Scan/pkg/routing"
 	"context"
 	"fmt"
@@ -90,6 +91,7 @@ var scanCmd = &cobra.Command{
 			fmt.Println("[-] 致命错误: 无法获取本机默认网络接口")
 			os.Exit(1)
 		}
+		go core.RunResultPersister()
 		localIPStr := routeInfo.SrcIP.String()
 		deviceName := routeInfo.DeviceName
 
@@ -119,7 +121,8 @@ var scanCmd = &cobra.Command{
 		// 10. 创建带有取消功能的上下文，并监听系统中断信号 (Ctrl+C)
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-
+		//conf.GlobalOps.Servicescan = true
+		l7.InitNmapParser()
 		sigChan := make(chan os.Signal, 1)
 		signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 		go func() {
@@ -130,11 +133,13 @@ var scanCmd = &cobra.Command{
 
 		totalTasks := int64(ipIterator.Count()) * int64(len(ports))
 		core.InitMetrics(totalTasks)
-		go core.StartMonitor(ctx)
-		go core.StartReporter(ctx)
+		//go core.StartMonitor(ctx)
+		//go core.StartReporter(ctx)
 		// 11. 引擎点火！阻塞等待直到所有任务完成或被中断
 		engine.Run(ctx, generator)
+		<-core.PersistDone
 
+		fmt.Println("[*] 完美收工！")
 		fmt.Println("[*] Scan completed.")
 	},
 }

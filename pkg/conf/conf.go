@@ -59,7 +59,9 @@ type GlobalConfig struct {
 
 	NumDecoys int // -D
 
-	SkipHostDiscovery bool //Pn
+	SkipHostDiscovery bool   //Pn
+	OutputFile        string //output file path
+	IsOutputFile      bool
 }
 
 func (g *GlobalConfig) Af() int {

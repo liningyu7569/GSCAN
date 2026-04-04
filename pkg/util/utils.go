@@ -6,6 +6,8 @@ import (
 	"golang.org/x/sys/unix"
 	"net"
 	"net/netip"
+	"strings"
+	"unicode"
 )
 
 // 使用netip.Addr创建unix.Sockaddr
@@ -56,4 +58,19 @@ func Uint32ToIP(nn uint32) net.IP {
 	ip := make(net.IP, 4)
 	binary.BigEndian.PutUint32(ip, nn)
 	return ip
+}
+
+// CleanBanner 将不可见字符转换为转义符
+func CleanBanner(banner string) string {
+	if banner == "" {
+		return ""
+	}
+	// 简单粗暴：只保留可见字符或常用空白符
+	res := strings.Map(func(r rune) rune {
+		if unicode.IsPrint(r) || r == '\n' || r == '\r' || r == '\t' {
+			return r
+		}
+		return -1 // 丢弃
+	}, banner)
+	return strings.TrimSpace(res)
 }
