@@ -61,6 +61,7 @@ type GlobalConfig struct {
 
 	SkipHostDiscovery bool   //Pn
 	OutputFile        string //output file path
+	OutputFormat      string
 	IsOutputFile      bool
 }
 
@@ -83,7 +84,7 @@ func (g *GlobalConfig) GetTargetIterator() (target.Iterator, error) {
 	if g.ExcludeStr != "" {
 		excludes = strings.Split(g.ExcludeStr, ",")
 	}
-	return target.NewContainer(g.InputS, excludes)
+	return target.NewContainer(g.InputS, excludes, g.RandomizeHosts)
 }
 func (g *GlobalConfig) TCPScan() bool {
 	return g.Ackscan || g.Synscan || g.Connectscan || g.Idlescan || g.Windowscan

@@ -273,6 +273,9 @@ func (e *Engine) LaunchProbe(ctx context.Context, channelID uint16, task Emissio
 			if conf.GlobalOps.TimingLevel <= 3 {
 				e.decreaseCWND()
 			}
+			if !task.IsHostDiscovery && attempt == maxRetries && shouldEmitResult(task.ScanKind, ScanStateFiltered) {
+				e.emitScanResult(ctx, task, ScanStateFiltered)
+			}
 			continue
 		} else {
 			e.increaseCWND()
@@ -283,7 +286,7 @@ func (e *Engine) LaunchProbe(ctx context.Context, channelID uint16, task Emissio
 				if resultTensor.IsHostAlive(task.Protocol) {
 					if markAlive(task.TargetIP) {
 						ipStr := util.Uint32ToIP(task.TargetIP).String()
-						fmt.Printf(ipStr + " is alive\n")
+						fmt.Printf("%s is alive\n", ipStr)
 						for !HDReservoir.Push(task.TargetIP) {
 							if ctx.Err() != nil {
 								return
@@ -295,36 +298,35 @@ func (e *Engine) LaunchProbe(ctx context.Context, channelID uint16, task Emissio
 				break
 			}
 
-			isOpen := false
-			if task.Protocol == syscall.IPPROTO_TCP && resultTensor.IsTCPStateOpen() {
-				isOpen = true
-			} else if task.Protocol == syscall.IPPROTO_UDP && resultTensor.DecodeProtocol() == syscall.IPPROTO_UDP {
-				isOpen = true
+			state := evaluateTaskResult(task, resultTensor)
+			if state == ScanStateFiltered {
+				MetricFiltered.Add(uint64(channelID), 1)
 			}
-
-			if isOpen {
+			if state == ScanStateOpen {
 				MetricOpenPorts.Add(uint64(channelID), 1)
-
-				// --- 测试功能：记录开放端口 (用完可注释) ---
-				//ipStr := util.Uint32ToIP(task.TargetIP).String()
-				//testOpenPorts.Store(fmt.Sprintf("%s:%d", ipStr, task.TargetPort), struct{}{})
-				// ------------------------------------------
-				res := queue.ScanResult{
-					IP:       task.TargetIP,
-					Port:     task.TargetPort,
-					Protocol: task.Protocol,
-				}
-
-				// 无锁压入环形缓冲区，遇满自旋让出 CPU，绝不阻塞发包层
-				for !GlobalResultBuffer.Push(res) {
-					if ctx.Err() != nil {
-						return
-					}
-					runtime.Gosched()
-				}
+			}
+			if shouldEmitResult(task.ScanKind, state) {
+				e.emitScanResult(ctx, task, state)
 			}
 			break
 		}
+	}
+}
+
+func (e *Engine) emitScanResult(ctx context.Context, task EmissionTask, state uint8) {
+	res := queue.ScanResult{
+		IP:       task.TargetIP,
+		Port:     task.TargetPort,
+		Protocol: task.Protocol,
+		ScanKind: task.ScanKind,
+		State:    state,
+	}
+
+	for !GlobalResultBuffer.Push(res) {
+		if ctx.Err() != nil {
+			return
+		}
+		runtime.Gosched()
 	}
 }
 
@@ -417,7 +419,8 @@ func (e *Engine) RunL7Dispatcher_(ctx context.Context) {
 					IP:       result.IP,
 					Port:     result.Port,
 					Protocol: result.Protocol,
-					State:    "Open",
+					Method:   scanKindToString(result.ScanKind),
+					State:    "open",
 				}
 				select {
 				case ResultStream <- openResult:

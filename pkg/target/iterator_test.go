@@ -3,7 +3,7 @@ package target
 import "testing"
 
 func TestCIDRGeneratorIteratesFullIPv4Range(t *testing.T) {
-	iter, err := NewContainer([]string{"192.168.1.0/30"}, nil)
+	iter, err := NewContainer([]string{"192.168.1.0/30"}, nil, false)
 	if err != nil {
 		t.Fatalf("NewContainer returned error: %v", err)
 	}

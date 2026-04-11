@@ -3,14 +3,23 @@ package l7
 import (
 	_ "embed"
 	"fmt"
+	"math/big"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 //go:embed nmap-service-probes
 var rawNmapProbes string
-var versionInfoRe = regexp.MustCompile(`([pvihoOd])/([^/]+)/`)
+
+var (
+	hexEscapeRe      = regexp.MustCompile(`\\x([0-9a-fA-F]{2})`)
+	substMacroRe     = regexp.MustCompile(`\$SUBST\((\d+),\s*"((?:\\.|[^"])*)",\s*"((?:\\.|[^"])*)"\)`)
+	intMacroRe       = regexp.MustCompile(`\$I\((\d+),\s*"([<>])"\)`)
+	printableMacroRe = regexp.MustCompile(`\$P\((\d+)\)`)
+	groupMacroRe     = regexp.MustCompile(`\$(\d+)`)
+)
 
 // ---------------------------------------------------------
 // 核心结构体定义 (全面拥抱版本提取与端口索引)
@@ -28,6 +37,7 @@ type MatchRule struct {
 	Hostname string // h/xxx/
 	OS       string // o/Linux/
 	Device   string // d/router/
+	CPEs     []string
 }
 
 // Probe 探针定义，增加了智能选择与后备机制
@@ -35,11 +45,15 @@ type Probe struct {
 	Protocol string
 	Name     string
 	Payload  []byte
+	Sequence int
 
 	// 端口偏好 (原样保留，用于生成全局快速索引)
 	Ports    []int
 	SSLPorts []int
 	Fallback string // 若该探针失败，回退到哪个探针的名称
+	Rarity   int
+
+	TotalWait time.Duration
 
 	Matches     []MatchRule
 	SoftMatches []MatchRule
@@ -47,6 +61,9 @@ type Probe struct {
 
 // GlobalProbes 存放所有探针
 var GlobalProbes []*Probe
+
+// ProbeNameIndex 供 fallback 和通用探针调度使用
+var ProbeNameIndex = make(map[string]*Probe)
 
 // PortProbeIndex 核心优化：O(1) 复杂度的探针调度字典
 // L7 收到端口时，查这个字典就能瞬间知道该首发哪些探针
@@ -59,11 +76,30 @@ var PortProbeIndex = make(map[int][]*Probe)
 func InitNmapParser() {
 	fmt.Println("[L7-Parser] 引擎点火：正在深度编译 Nmap 指纹库...")
 
-	lines := strings.Split(rawNmapProbes, "\n")
-	var currentProbe *Probe
+	resetProbeRegistry()
+	loadNmapProbes(rawNmapProbes)
+	buildPortIndex()
+	CacheCommonProbes()
 
-	// 统计指标
-	stats := struct{ total, matches, skipped int }{}
+	fmt.Printf("[L7-Parser] 编译完成！载入探针: %d | 成功编译正则: %d | 舍弃不兼容正则: %d\n",
+		parserStats.total, parserStats.matches, parserStats.skipped)
+}
+
+var parserStats struct{ total, matches, skipped int }
+
+func resetProbeRegistry() {
+	GlobalProbes = nil
+	ProbeNameIndex = make(map[string]*Probe)
+	PortProbeIndex = make(map[int][]*Probe)
+	CachedTCPNullProbe = nil
+	CachedTCPGenericProbe = nil
+	CachedTCPGenericLinesProbe = nil
+	parserStats = struct{ total, matches, skipped int }{}
+}
+
+func loadNmapProbes(raw string) {
+	lines := strings.Split(raw, "\n")
+	var currentProbe *Probe
 
 	for lineNum, line := range lines {
 		line = strings.TrimSpace(line)
@@ -75,16 +111,18 @@ func InitNmapParser() {
 		if strings.HasPrefix(line, "Probe ") {
 			parts := strings.SplitN(line, " ", 4)
 			if len(parts) < 4 {
-				stats.skipped++
+				parserStats.skipped++
 				continue
 			}
 			currentProbe = &Probe{
 				Protocol: parts[1],
 				Name:     parts[2],
 				Payload:  parseNmapPayload(parts[3]),
+				Sequence: parserStats.total,
 			}
 			GlobalProbes = append(GlobalProbes, currentProbe)
-			stats.total++
+			ProbeNameIndex[currentProbe.Name] = currentProbe
+			parserStats.total++
 			continue
 		}
 
@@ -107,6 +145,18 @@ func InitNmapParser() {
 			currentProbe.Fallback = strings.TrimPrefix(line, "fallback ")
 			continue
 		}
+		if strings.HasPrefix(line, "rarity ") {
+			if value, err := strconv.Atoi(strings.TrimSpace(strings.TrimPrefix(line, "rarity "))); err == nil && value > 0 {
+				currentProbe.Rarity = value
+			}
+			continue
+		}
+		if strings.HasPrefix(line, "totalwaitms ") {
+			if value, err := strconv.Atoi(strings.TrimSpace(strings.TrimPrefix(line, "totalwaitms "))); err == nil && value > 0 {
+				currentProbe.TotalWait = time.Duration(value) * time.Millisecond
+			}
+			continue
+		}
 
 		// 4. 解析 match / softmatch (包含健壮的正则切割与版本提取)
 		isMatch := strings.HasPrefix(line, "match ")
@@ -123,7 +173,7 @@ func InitNmapParser() {
 			// Nmap 格式: <service> m|<regex>|<flags> [<versioninfo>]
 			firstSpace := strings.Index(matchStr, " ")
 			if firstSpace == -1 {
-				stats.skipped++
+				parserStats.skipped++
 				continue
 			}
 
@@ -131,7 +181,7 @@ func InitNmapParser() {
 			remainder := matchStr[firstSpace+1:]
 
 			if !strings.HasPrefix(remainder, "m") {
-				stats.skipped++
+				parserStats.skipped++
 				continue
 			}
 
@@ -148,7 +198,7 @@ func InitNmapParser() {
 			if endIdx == -1 {
 				// 正则未闭合，语法错误
 				fmt.Printf("[!] 解析警告 (行 %d): 正则表达式未闭合\n", lineNum+1)
-				stats.skipped++
+				parserStats.skipped++
 				continue
 			}
 
@@ -175,7 +225,7 @@ func InitNmapParser() {
 			compiledRegex, err := regexp.Compile(goRegexStr)
 			if err != nil {
 				// 这是正常的，Nmap 库里有部分 PCRE 高级语法 Go 标准库不支持
-				stats.skipped++
+				parserStats.skipped++
 				continue
 			}
 
@@ -194,17 +244,9 @@ func InitNmapParser() {
 			} else {
 				currentProbe.SoftMatches = append(currentProbe.SoftMatches, rule)
 			}
-			stats.matches++
+			parserStats.matches++
 		}
 	}
-
-	// 5. 构建全局智能端口调度索引 (极大地提升未来 L7 Worker 的运行效率)
-	buildPortIndex()
-
-	fmt.Printf("[L7-Parser] 编译完成！载入探针: %d | 成功编译正则: %d | 舍弃不兼容正则: %d\n",
-		stats.total, stats.matches, stats.skipped)
-
-	CacheCommonProbes()
 }
 
 // ---------------------------------------------------------
@@ -213,29 +255,79 @@ func InitNmapParser() {
 
 // parseVersionInfo 解析版本信息元数据
 func parseVersionInfo(rule *MatchRule, infoStr string) {
-	// Nmap 的模板结构为 <标记><定界符><内容><定界符>，例如 p/Apache/ v/2.4/
-	// 直接复用全局预编译的正则，极其丝滑
-	matches := versionInfoRe.FindAllStringSubmatch(infoStr, -1)
+	for i := 0; i < len(infoStr); {
+		for i < len(infoStr) && infoStr[i] == ' ' {
+			i++
+		}
+		if i >= len(infoStr) {
+			break
+		}
 
-	for _, m := range matches {
-		if len(m) == 3 {
-			key, val := m[1], m[2]
-			switch key {
-			case "p":
-				rule.Product = val
-			case "v":
-				rule.Version = val
-			case "i":
-				rule.Info = val
-			case "h":
-				rule.Hostname = val
-			case "o":
-				rule.OS = val
-			case "d":
-				rule.Device = val
-			}
+		key, keyLen := versionInfoKey(infoStr[i:])
+		if key == "" {
+			i++
+			continue
+		}
+		if i+keyLen >= len(infoStr) {
+			break
+		}
+
+		delim := infoStr[i+keyLen]
+		value, next, ok := readDelimitedToken(infoStr, i+keyLen+1, delim)
+		if !ok {
+			break
+		}
+
+		switch key {
+		case "p":
+			rule.Product = value
+		case "v":
+			rule.Version = value
+		case "i":
+			rule.Info = value
+		case "h":
+			rule.Hostname = value
+		case "o", "O":
+			rule.OS = value
+		case "d":
+			rule.Device = value
+		case "cpe":
+			rule.CPEs = append(rule.CPEs, value)
+		}
+
+		i = next
+	}
+}
+
+func versionInfoKey(s string) (string, int) {
+	switch {
+	case strings.HasPrefix(s, "cpe:"):
+		return "cpe", len("cpe:")
+	case len(s) > 0:
+		switch s[0] {
+		case 'p', 'v', 'i', 'h', 'o', 'O', 'd':
+			return string(s[0]), 1
 		}
 	}
+	return "", 0
+}
+
+func readDelimitedToken(s string, start int, delim byte) (string, int, bool) {
+	escaped := false
+	for i := start; i < len(s); i++ {
+		if escaped {
+			escaped = false
+			continue
+		}
+		if s[i] == '\\' {
+			escaped = true
+			continue
+		}
+		if s[i] == delim {
+			return s[start:i], i + 1, true
+		}
+	}
+	return "", len(s), false
 }
 
 // parsePorts 解析 80,443,8000-8010 格式
@@ -266,9 +358,22 @@ func parsePorts(portStr string) []int {
 func buildPortIndex() {
 	for _, probe := range GlobalProbes {
 		for _, port := range probe.Ports {
-			PortProbeIndex[port] = append(PortProbeIndex[port], probe)
+			appendIndexedProbe(port, probe)
+		}
+		for _, port := range probe.SSLPorts {
+			appendIndexedProbe(port, probe)
 		}
 	}
+}
+
+func appendIndexedProbe(port int, probe *Probe) {
+	existing := PortProbeIndex[port]
+	for _, item := range existing {
+		if item == probe {
+			return
+		}
+	}
+	PortProbeIndex[port] = append(existing, probe)
 }
 
 func parseNmapPayload(qStr string) []byte {
@@ -283,14 +388,95 @@ func parseNmapPayload(qStr string) []byte {
 		return nil
 	}
 	raw := parts[0]
-	raw = strings.ReplaceAll(raw, "\\r", "\r")
-	raw = strings.ReplaceAll(raw, "\\n", "\n")
-	raw = strings.ReplaceAll(raw, "\\t", "\t")
-	raw = strings.ReplaceAll(raw, "\\0", "\x00")
-	re := regexp.MustCompile(`\\x([0-9a-fA-F]{2})`)
-	raw = re.ReplaceAllStringFunc(raw, func(hexStr string) string {
+	return []byte(decodeEscapedText(raw))
+}
+
+func decodeEscapedText(raw string) string {
+	raw = hexEscapeRe.ReplaceAllStringFunc(raw, func(hexStr string) string {
 		val, _ := strconv.ParseUint(hexStr[2:], 16, 8)
 		return string([]byte{byte(val)})
 	})
-	return []byte(raw)
+	replacer := strings.NewReplacer(
+		"\\r", "\r",
+		"\\n", "\n",
+		"\\t", "\t",
+		"\\0", "\x00",
+		"\\\"", "\"",
+		"\\\\", "\\",
+	)
+	return replacer.Replace(raw)
+}
+
+func expandTemplate(template string, groups [][]byte) string {
+	if template == "" {
+		return ""
+	}
+
+	expanded := substMacroRe.ReplaceAllStringFunc(template, func(match string) string {
+		parts := substMacroRe.FindStringSubmatch(match)
+		if len(parts) != 4 {
+			return match
+		}
+		group := templateGroup(parts[1], groups)
+		if group == nil {
+			return ""
+		}
+		oldVal := decodeEscapedText(parts[2])
+		newVal := decodeEscapedText(parts[3])
+		return strings.ReplaceAll(string(group), oldVal, newVal)
+	})
+
+	expanded = intMacroRe.ReplaceAllStringFunc(expanded, func(match string) string {
+		parts := intMacroRe.FindStringSubmatch(match)
+		if len(parts) != 3 {
+			return match
+		}
+		group := templateGroup(parts[1], groups)
+		if len(group) == 0 {
+			return ""
+		}
+		return formatUnsignedGroup(group, parts[2])
+	})
+
+	expanded = printableMacroRe.ReplaceAllStringFunc(expanded, func(match string) string {
+		parts := printableMacroRe.FindStringSubmatch(match)
+		if len(parts) != 2 {
+			return match
+		}
+		return sanitizePrintableText(templateGroup(parts[1], groups), 0)
+	})
+
+	expanded = groupMacroRe.ReplaceAllStringFunc(expanded, func(match string) string {
+		parts := groupMacroRe.FindStringSubmatch(match)
+		if len(parts) != 2 {
+			return match
+		}
+		return string(templateGroup(parts[1], groups))
+	})
+
+	return strings.TrimSpace(expanded)
+}
+
+func templateGroup(indexText string, groups [][]byte) []byte {
+	index, err := strconv.Atoi(indexText)
+	if err != nil || index <= 0 || index >= len(groups) {
+		return nil
+	}
+	return groups[index]
+}
+
+func formatUnsignedGroup(group []byte, order string) string {
+	if len(group) == 0 {
+		return ""
+	}
+
+	data := append([]byte(nil), group...)
+	if order == "<" {
+		for left, right := 0, len(data)-1; left < right; left, right = left+1, right-1 {
+			data[left], data[right] = data[right], data[left]
+		}
+	}
+
+	value := new(big.Int).SetBytes(data)
+	return value.String()
 }

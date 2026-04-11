@@ -47,3 +47,63 @@ func TestBuildIntoBufferEncodesChannelPortAndTTL(t *testing.T) {
 		t.Fatalf("unexpected TTL: got %d want 42", got)
 	}
 }
+
+func TestBuildIntoBufferEncodesUDPFields(t *testing.T) {
+	buf := make([]byte, 128)
+	task := EmissionTask{
+		TargetIP:   0xC0A80101,
+		TargetPort: 53,
+		Protocol:   17,
+	}
+	route := RouteMeta{
+		SrcIP: 0xC0A80164,
+		SrcMAC: [6]byte{
+			0x00, 0x11, 0x22, 0x33, 0x44, 0x55,
+		},
+		DstMAC: [6]byte{
+			0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff,
+		},
+	}
+
+	packetLen, err := BuildIntoBuffer(&buf, task, 7, route)
+	if err != nil {
+		t.Fatalf("BuildIntoBuffer returned error: %v", err)
+	}
+	if packetLen != 42 {
+		t.Fatalf("unexpected packet length: got %d want 42", packetLen)
+	}
+	if got := binary.BigEndian.Uint16(buf[34:36]); got != encodeChannelPort(7) {
+		t.Fatalf("unexpected UDP source port: got %d want %d", got, encodeChannelPort(7))
+	}
+	if got := binary.BigEndian.Uint16(buf[38:40]); got != UDPLen {
+		t.Fatalf("unexpected UDP length: got %d want %d", got, UDPLen)
+	}
+}
+
+func TestBuildIntoBufferEncodesICMPEchoIdentifier(t *testing.T) {
+	buf := make([]byte, 128)
+	task := EmissionTask{
+		TargetIP: 0xC0A80101,
+		Protocol: 1,
+	}
+	route := RouteMeta{
+		SrcIP: 0xC0A80164,
+		SrcMAC: [6]byte{
+			0x00, 0x11, 0x22, 0x33, 0x44, 0x55,
+		},
+		DstMAC: [6]byte{
+			0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff,
+		},
+	}
+
+	packetLen, err := BuildIntoBuffer(&buf, task, 11, route)
+	if err != nil {
+		t.Fatalf("BuildIntoBuffer returned error: %v", err)
+	}
+	if packetLen != 42 {
+		t.Fatalf("unexpected packet length: got %d want 42", packetLen)
+	}
+	if got := binary.BigEndian.Uint16(buf[38:40]); got != encodeChannelPort(11) {
+		t.Fatalf("unexpected ICMP identifier: got %d want %d", got, encodeChannelPort(11))
+	}
+}

@@ -14,7 +14,7 @@ const TensorTimeout PacketTensor = 0xFFFFFFFF
 // 张量位移常量
 const (
 	ShiftTTL      = 8
-	ShiftWinSize  = 16
+	ShiftAux      = 16
 	ShiftProtocol = 20
 )
 
@@ -51,15 +51,17 @@ func ExtractTensor(ipv4Header []byte, transportHeader []byte) PacketTensor {
 
 			// 提取 Window Size 并量化
 			winSize := binary.BigEndian.Uint16(transportHeader[14:16])
-			tensor |= PacketTensor(quantizeWindow(winSize)) << ShiftWinSize
+			tensor |= PacketTensor(quantizeWindow(winSize)) << ShiftAux
 		}
 
-	case 1: // syscall.IPPROTO_ICMP
-		if len(transportHeader) >= 1 {
-			// 提取 ICMP Type (ICMP 头第 1 字节)
-			// Type 3 通常代表 Destination Unreachable (端口不可达/被过滤)
+	case syscall.IPPROTO_ICMP: // syscall.IPPROTO_ICMP
+		if len(transportHeader) >= 2 {
+			// 提取 ICMP Type和Code (ICMP 头第 2 字节)
 			icmpType := transportHeader[0]
+			icmpCode := transportHeader[1]
+			// 将 Type 存在 0-7 位，Code 存在 16-19 位，避免覆盖 TTL 段
 			tensor |= PacketTensor(icmpType)
+			tensor |= PacketTensor(icmpCode&0x0F) << ShiftAux
 		}
 
 	case syscall.IPPROTO_UDP:
@@ -118,4 +120,69 @@ func (t PacketTensor) IsTCPStateClosed() bool {
 		return true
 	}
 	return false
+}
+
+// DecodeICMP 返回 (Type, Code)
+func (t PacketTensor) DecodeICMP() (uint8, uint8) {
+	return uint8(t & 0xFF), uint8((t >> ShiftAux) & 0x0F)
+}
+
+func (t PacketTensor) DecodeAux() uint8 {
+	return uint8((t >> ShiftAux) & 0x0F)
+}
+
+func (t PacketTensor) HasNonZeroTCPWindow() bool {
+	return t.DecodeProtocol() == syscall.IPPROTO_TCP && t.DecodeAux() > 0
+}
+
+// IsUDPStateOpen 判断 UDP 端口是否开放 (收到实质的 UDP 回包)
+func (t PacketTensor) IsUDPStateOpen() bool {
+	return t.DecodeProtocol() == syscall.IPPROTO_UDP && (t&0xFF) == 0x01
+}
+
+// IsUDPStateClosed 判断 UDP 端口是否明确关闭 (收到 ICMP Port Unreachable)
+func (t PacketTensor) IsUDPStateClosed() bool {
+	if t.DecodeProtocol() == syscall.IPPROTO_ICMP {
+		typ, code := t.DecodeICMP()
+		if typ == 3 && code == 3 {
+			return true
+		}
+	}
+	return false
+}
+
+func (t PacketTensor) IsTCPFiltered() bool {
+	if t.DecodeProtocol() != syscall.IPPROTO_ICMP {
+		return false
+	}
+
+	typ, code := t.DecodeICMP()
+	if typ != 3 {
+		return false
+	}
+
+	switch code {
+	case 0, 1, 2, 3, 9, 10, 13:
+		return true
+	default:
+		return false
+	}
+}
+
+func (t PacketTensor) IsUDPFiltered() bool {
+	if t.DecodeProtocol() != syscall.IPPROTO_ICMP {
+		return false
+	}
+
+	typ, code := t.DecodeICMP()
+	if typ != 3 {
+		return false
+	}
+
+	switch code {
+	case 1, 2, 9, 10, 13:
+		return true
+	default:
+		return false
+	}
 }

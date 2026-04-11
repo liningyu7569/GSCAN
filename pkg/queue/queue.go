@@ -10,6 +10,8 @@ type ScanResult struct {
 	IP       uint32
 	Port     uint16
 	Protocol uint8
+	ScanKind uint8
+	State    uint8
 }
 
 // 使用泛型 T 替代写死的 ScanResult

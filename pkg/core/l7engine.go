@@ -19,13 +19,21 @@ const (
 
 // ScanResult 终极战果结构体 (支持 JSON 序列化落盘)
 type ScanResult struct {
-	IP       uint32 `json:"-"`        // 内部流转用的高效整型
-	IPStr    string `json:"ip"`       // 落盘用的可读字符串
-	Port     uint16 `json:"port"`     // 端口
-	Protocol uint8  `json:"protocol"` // tcp / udp
-	State    string `json:"state"`    // open
-	Service  string `json:"service"`  // L7 识别出的服务名 (如 http, ssh)
-	Banner   string `json:"banner"`   // 核心指纹特征/响应头
+	IP       uint32   `json:"-"`        // 内部流转用的高效整型
+	IPStr    string   `json:"ip"`       // 落盘用的可读字符串
+	Port     uint16   `json:"port"`     // 端口
+	Protocol uint8    `json:"protocol"` // tcp / udp
+	Method   string   `json:"method"`   // tcp-syn / tcp-ack / tcp-window / udp
+	State    string   `json:"state"`    // open / filtered / unfiltered
+	Service  string   `json:"service"`  // L7 识别出的服务名 (如 http, ssh)
+	Product  string   `json:"product,omitempty"`
+	Version  string   `json:"version,omitempty"`
+	Info     string   `json:"info,omitempty"`
+	Hostname string   `json:"hostname,omitempty"`
+	OS       string   `json:"os,omitempty"`
+	Device   string   `json:"device,omitempty"`
+	CPEs     []string `json:"cpes,omitempty"`
+	Banner   string   `json:"banner"` // 核心指纹特征/响应头
 }
 
 // ---------------------------------------------------------
@@ -68,15 +76,7 @@ func (e *Engine) RunL7Dispatcher(ctx context.Context) {
 				return
 			default:
 				if GlobalResultBuffer.Pop(&result) {
-					// 裸数据直接进入持久化层
-					ResultStream <- ScanResult{
-						IP:       result.IP,
-						IPStr:    util.Uint32ToIP(result.IP).String(),
-						Port:     result.Port,
-						Protocol: result.Protocol,
-						State:    "Open",
-						Service:  "", // 留空
-					}
+					ResultStream <- translateQueueResult(result)
 				} else {
 					if e.isL4Finished() {
 						close(ResultStream) // 告诉管家 Persister 不要等了，关门落盘！
@@ -113,17 +113,15 @@ func (e *Engine) RunL7Dispatcher(ctx context.Context) {
 			return
 		default:
 			if GlobalResultBuffer.Pop(&result) {
-				task := ScanResult{
-					IP:       result.IP,
-					IPStr:    util.Uint32ToIP(result.IP).String(),
-					Port:     result.Port,
-					Protocol: result.Protocol,
-					State:    "Open",
-					Service:  "unknown",
-				}
-				select {
-				case l7TaskQueue <- task:
-				case <-ctx.Done():
+				task := translateQueueResult(result)
+				if shouldDispatchToL7(result.ScanKind, result.State, result.Protocol) {
+					task.Service = "unknown"
+					select {
+					case l7TaskQueue <- task:
+					case <-ctx.Done():
+					}
+				} else {
+					ResultStream <- task
 				}
 			} else {
 				if e.isL4Finished() {
@@ -147,13 +145,32 @@ func (e *Engine) l7ServiceWorker(ctx context.Context, wg *sync.WaitGroup, tasks 
 		bufPtr := GetL7Buffer()
 
 		// 【关键修改】传递 Protocol，让底层感知 TCP/UDP
-		service, banner := l7.IdentifyService(task.IPStr, task.Port, task.Protocol, bufPtr)
+		fp := l7.IdentifyService(task.IPStr, task.Port, task.Protocol, bufPtr)
 
-		task.Service = service
-		task.Banner = banner
+		task.Service = fp.Service
+		task.Product = fp.Product
+		task.Version = fp.Version
+		task.Info = fp.Info
+		task.Hostname = fp.Hostname
+		task.OS = fp.OS
+		task.Device = fp.Device
+		task.CPEs = append([]string(nil), fp.CPEs...)
+		task.Banner = fp.Banner
 
 		PutL7Buffer(bufPtr)
 
 		ResultStream <- task
+	}
+}
+
+func translateQueueResult(result queue.ScanResult) ScanResult {
+	return ScanResult{
+		IP:       result.IP,
+		IPStr:    util.Uint32ToIP(result.IP).String(),
+		Port:     result.Port,
+		Protocol: result.Protocol,
+		Method:   scanKindToString(result.ScanKind),
+		State:    scanStateToString(result.State),
+		Service:  "",
 	}
 }

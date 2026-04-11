@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -27,121 +29,10 @@ var rootCmd = &cobra.Command{
 var scanCmd = &cobra.Command{
 	Use:   "scan [targets]",
 	Short: "Run a scan against target hosts",
-	Example: `  goscan scan 192.168.1.1 -p 80,443 -sS
+	Example: `  goscan scan 192.168.1.1 -p 80,443 --syn
   goscan scan 192.168.1.0/24 -p 1-1000 --max-rate 1000
-  goscan scan 10.0.0.1 --top-ports 100 -sV`,
-	Run: func(cmd *cobra.Command, args []string) {
-		// 1. 处理目标输入
-		if len(args) > 0 {
-			conf.GlobalOps.InputS = args
-		} else {
-			fmt.Println("Error: Target IP or CIDR is required.")
-			fmt.Println("Usage: goscan scan [targets] [flags]")
-			os.Exit(1)
-		}
-		//t := time.Now()
-		// 2. 端口解析逻辑 (保留你原有的逻辑)
-		var ports []int
-		var err error
-
-		if conf.GlobalOps.PortStr != "" {
-
-			ports, err = parsePorts(conf.GlobalOps.PortStr)
-			if err != nil {
-				fmt.Printf("%s is error for %e \n", conf.GlobalOps.PortStr, err)
-			}
-			//ports = []int{80, 443, 21, 22, 23, 24} // 占位演示
-		} else if conf.GlobalOps.FastScan {
-			fmt.Println("[*] Fast scan mode enabled (scanning top 100 ports)...")
-			ports = make([]int, 10000)
-			for i := 0; i < 10000; i++ {
-				ports[i] = i + 1
-			}
-		} else if conf.GlobalOps.TopPort > 0 {
-			fmt.Printf("[*] Scanning top %d ports...\n", conf.GlobalOps.TopPort)
-			ports = []int{80, 443} // 占位演示
-		} else {
-			fmt.Println("[*] No port specified, scanning default ports...")
-			ports = []int{80, 443, 22, 21} // 占位演示
-		}
-
-		// 3. 扫描模式互斥/默认处理
-		if !conf.GlobalOps.Synscan && !conf.GlobalOps.Connectscan && !conf.GlobalOps.Udpscan &&
-			!conf.GlobalOps.Ackscan && !conf.GlobalOps.Windowscan && !conf.GlobalOps.Idlescan {
-			conf.GlobalOps.Synscan = true
-		}
-
-		// 4. 初始化路由和环境
-		err = routing.InitRouter()
-		if err != nil {
-			fmt.Printf("[-] Routing initialization failed: %v\n", err)
-			os.Exit(1)
-		}
-
-		// =========================================================================
-		// 【V2 架构接入开始】: 废弃旧的 GlobalPorts 初始化，全面启用张量引擎
-		// =========================================================================
-
-		fmt.Println("[*] Starting Going_Scan V2 Engine...")
-
-		// 5. 获取本机默认出口网卡与 IP (用于 Pcap 监听和构建 BPF 过滤)
-		// 这里假设你的 routing 包有获取默认网卡信息的方法
-		routeInfo := routing.GetDefaultInterface()
-		if routeInfo == nil {
-			fmt.Println("[-] 致命错误: 无法获取本机默认网络接口")
-			os.Exit(1)
-		}
-		go core.RunResultPersister()
-		localIPStr := routeInfo.SrcIP.String()
-		deviceName := routeInfo.DeviceName
-
-		// 6. 初始化底层 Pcap 句柄
-		pcapHandle, err := core.InitPcap(deviceName, localIPStr)
-		if err != nil {
-			fmt.Printf("[-] 致命错误: Pcap 初始化失败 (请确认是否具有 root/管理员权限): %v\n", err)
-			os.Exit(1)
-		}
-		defer pcapHandle.Close() // 确保程序退出时释放网卡句柄
-
-		// 7. 初始化目标迭代器
-		ipIterator, err := conf.GlobalOps.GetTargetIterator()
-		if err != nil {
-			fmt.Printf("[-] IP 解析失败: %v\n", err)
-			os.Exit(1)
-		}
-		conf.ApplyTimingTemplate()
-		// 8. 创建任务张量生成器 (Task Generator)
-		generator := core.NewTaskGenerator(ipIterator, ports)
-
-		// 9. 创建稳态引擎 (Engine)
-		// 设置初始并发 CWND 为 1000 (可根据配置动态调整)
-		//initialCWND := 1000
-		engine := core.NewEngine(pcapHandle)
-
-		// 10. 创建带有取消功能的上下文，并监听系统中断信号 (Ctrl+C)
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		//conf.GlobalOps.Servicescan = true
-		l7.InitNmapParser()
-		sigChan := make(chan os.Signal, 1)
-		signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-		go func() {
-			<-sigChan
-			fmt.Println("\n[!] 捕获到手动中断信号 (Ctrl+C)，正在安全回收探针...")
-			cancel() // 触发 ctx.Done()，引擎会立刻停止下发新任务
-		}()
-
-		totalTasks := int64(ipIterator.Count()) * int64(len(ports))
-		core.InitMetrics(totalTasks)
-		//go core.StartMonitor(ctx)
-		//go core.StartReporter(ctx)
-		// 11. 引擎点火！阻塞等待直到所有任务完成或被中断
-		engine.Run(ctx, generator)
-		<-core.PersistDone
-
-		fmt.Println("[*] 完美收工！")
-		fmt.Println("[*] Scan completed.")
-	},
+  goscan scan 10.0.0.1 --top-ports 50 --syn --udp -V`,
+	RunE: runScan,
 }
 
 func init() {
@@ -164,8 +55,10 @@ func init() {
 	// --- 2. 端口与目标 (Port & Target) ---
 	f.StringVarP(&conf.GlobalOps.PortStr, "port", "p", "", "Ports to scan (e.g. 80,443,1-100)")
 	f.StringVar(&conf.GlobalOps.ExcludeStr, "exclude", "", "Exclude hosts/networks")
-	f.BoolVarP(&conf.GlobalOps.FastScan, "fast", "F", false, "Fast mode - Scan fewer ports than the default scan")
-	f.IntVar(&conf.GlobalOps.TopPort, "top-ports", 0, "Scan <number> most common ports")
+	f.BoolVarP(&conf.GlobalOps.FastScan, "fast", "F", false, "Use the bundled top 100 ports")
+	f.IntVar(&conf.GlobalOps.TopPort, "top-ports", 0, "Scan the first <number> bundled common ports (max 100)")
+	f.StringVarP(&conf.GlobalOps.OutputFile, "output", "o", "", "Write the aggregated scan portrait to a file")
+	f.StringVar(&conf.GlobalOps.OutputFormat, "output-format", "", "Output portrait format: json or yaml")
 	f.BoolVarP(&conf.GlobalOps.RandomizeHosts, "randomize-hosts", "", true, "Randomize target scan order")
 
 	// --- 3. 性能与时序 (Timing & Performance) ---
@@ -190,6 +83,99 @@ func init() {
 	f.BoolVar(&conf.GlobalOps.DefeatRSTRateLimit, "defeat-rst-ratelimit", false, "Ignore RST rate limits")
 }
 
+func runScan(cmd *cobra.Command, args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("target IP or CIDR is required")
+	}
+	conf.GlobalOps.InputS = append([]string(nil), args...)
+
+	if err := validateUnsupportedOptions(); err != nil {
+		return err
+	}
+
+	ports, portMessage, err := resolvePorts()
+	if err != nil {
+		return err
+	}
+	fmt.Println(portMessage)
+
+	scanProfiles, err := resolveScanProfiles()
+	if err != nil {
+		return err
+	}
+	fmt.Printf("[*] L4 scan profiles: %s\n", describeScanProfiles(scanProfiles))
+
+	if err := resolveOutputConfig(); err != nil {
+		return err
+	}
+	if conf.GlobalOps.IsOutputFile {
+		fmt.Printf("[*] Aggregated portrait output: %s (%s)\n", conf.GlobalOps.OutputFile, conf.GlobalOps.OutputFormat)
+	}
+
+	if err := routing.InitRouter(); err != nil {
+		return fmt.Errorf("routing initialization failed: %w", err)
+	}
+
+	fmt.Println("[*] Starting Going_Scan V2 Engine...")
+
+	routeInfo := routing.GetDefaultInterface()
+	if routeInfo == nil {
+		return fmt.Errorf("无法获取本机默认网络接口")
+	}
+	go core.RunResultPersister()
+	localIPStr := routeInfo.SrcIP.String()
+	deviceName := routeInfo.DeviceName
+
+	pcapHandle, err := core.InitPcap(deviceName, localIPStr)
+	if err != nil {
+		return fmt.Errorf("pcap 初始化失败 (请确认是否具有 root/管理员权限): %w", err)
+	}
+	defer pcapHandle.Close()
+
+	ipIterator, err := conf.GlobalOps.GetTargetIterator()
+	if err != nil {
+		return fmt.Errorf("IP 解析失败: %w", err)
+	}
+	conf.ApplyTimingTemplate()
+	generator := core.NewTaskGenerator(ipIterator, ports, scanProfiles)
+
+	engine := core.NewEngine(pcapHandle)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if conf.GlobalOps.Servicescan {
+		l7.InitNmapParser()
+	}
+
+	core.SetRunMetadata(core.RunMetadata{
+		Command:      strings.Join(os.Args, " "),
+		Targets:      append([]string(nil), conf.GlobalOps.InputS...),
+		Ports:        append([]int(nil), ports...),
+		Profiles:     profileNames(scanProfiles),
+		ServiceScan:  conf.GlobalOps.Servicescan,
+		OutputFile:   conf.GlobalOps.OutputFile,
+		OutputFormat: conf.GlobalOps.OutputFormat,
+	})
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-sigChan
+		fmt.Println("\n[!] 捕获到手动中断信号 (Ctrl+C)，正在安全回收探针...")
+		cancel()
+	}()
+
+	totalTasks := estimateTotalTasks(ipIterator.Count(), len(ports), len(scanProfiles))
+	core.InitMetrics(totalTasks)
+	engine.Run(ctx, generator)
+	<-core.PersistDone
+
+	fmt.Println("[*] 完美收工！")
+	fmt.Println("[*] Scan completed.")
+	return nil
+}
+
 // Execute 执行入口
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
@@ -198,34 +184,179 @@ func Execute() {
 	}
 }
 
-// 辅助函数：解析简单的端口字符串
-func parsePort(s string) ([]int, error) {
-	// 这里只是一个极其简单的实现，实际需要支持 "1-100,200" 这种格式
-	parts := strings.Split(s, ",")
-	var ints []int
-	for _, v := range parts {
-		v = strings.TrimSpace(v)
-		if strings.Contains(v, "-") {
-			// 处理范围 80-90
-			rangeParts := strings.Split(v, "-")
-			if len(rangeParts) != 2 {
-				return nil, fmt.Errorf("invalid range: %s", v)
-			}
-			start, _ := strconv.Atoi(rangeParts[0])
-			end, _ := strconv.Atoi(rangeParts[1])
-			for i := start; i <= end; i++ {
-				ints = append(ints, i)
-			}
-		} else {
-			// 处理单个端口
-			num, err := strconv.Atoi(v)
-			if err != nil {
-				return nil, err
-			}
-			ints = append(ints, num)
+func estimateTotalTasks(targetCount uint64, portCount int, profileCount int) int64 {
+	total := int64(targetCount) * int64(portCount) * int64(profileCount)
+	if !conf.GlobalOps.SkipHostDiscovery {
+		total += int64(targetCount) * int64(core.DefaultHostDiscoveryProfileCount())
+	}
+	return total
+}
+
+func validateUnsupportedOptions() error {
+	var unsupported []string
+
+	if conf.GlobalOps.Connectscan {
+		unsupported = append(unsupported, "--connect")
+	}
+
+	if conf.GlobalOps.Oscan {
+		unsupported = append(unsupported, "--osscan")
+	}
+	if conf.GlobalOps.Ipprotscan {
+		unsupported = append(unsupported, "--protocol")
+	}
+	if conf.GlobalOps.IdleProxy != "" || conf.GlobalOps.Idlescan {
+		unsupported = append(unsupported, "--zombie")
+	}
+	if conf.GlobalOps.Device != "" {
+		unsupported = append(unsupported, "--interface")
+	}
+	if conf.GlobalOps.SpoofIP != "" {
+		unsupported = append(unsupported, "--spoof-ip")
+	}
+	if conf.GlobalOps.SourcePort != 0 {
+		unsupported = append(unsupported, "--source-port")
+	}
+	if conf.GlobalOps.FragScan {
+		unsupported = append(unsupported, "--fragment")
+	}
+	if conf.GlobalOps.BadSum {
+		unsupported = append(unsupported, "--badsum")
+	}
+	if conf.GlobalOps.DataLength > 0 {
+		unsupported = append(unsupported, "--data-length")
+	}
+	if conf.GlobalOps.NumDecoys > 0 {
+		unsupported = append(unsupported, "--decoys")
+	}
+	if conf.GlobalOps.DefeatRSTRateLimit {
+		unsupported = append(unsupported, "--defeat-rst-ratelimit")
+	}
+
+	if len(unsupported) == 0 {
+		return nil
+	}
+
+	sort.Strings(unsupported)
+	return fmt.Errorf("这些参数当前还没有接入 V2 引擎，请先不要混用: %s", strings.Join(unsupported, ", "))
+}
+
+func resolvePorts() ([]int, string, error) {
+	modeCount := 0
+	if conf.GlobalOps.PortStr != "" {
+		modeCount++
+	}
+	if conf.GlobalOps.FastScan {
+		modeCount++
+	}
+	if conf.GlobalOps.TopPort > 0 {
+		modeCount++
+	}
+	if modeCount > 1 {
+		return nil, "", fmt.Errorf("-p, -F, --top-ports 只能选择一种端口输入方式")
+	}
+
+	switch {
+	case conf.GlobalOps.PortStr != "":
+		ports, err := parsePorts(conf.GlobalOps.PortStr)
+		if err != nil {
+			return nil, "", err
+		}
+		return ports, fmt.Sprintf("[*] Scanning %d explicitly selected ports...", len(ports)), nil
+	case conf.GlobalOps.FastScan:
+		ports := append([]int(nil), core.TopPorts...)
+		return ports, fmt.Sprintf("[*] Fast scan mode enabled (bundled top %d ports)...", len(ports)), nil
+	case conf.GlobalOps.TopPort > 0:
+		if conf.GlobalOps.TopPort > len(core.TopPorts) {
+			return nil, "", fmt.Errorf("--top-ports 在当前构建中最多支持 %d 个内置端口", len(core.TopPorts))
+		}
+		ports := append([]int(nil), core.TopPorts[:conf.GlobalOps.TopPort]...)
+		return ports, fmt.Sprintf("[*] Scanning bundled top %d ports...", len(ports)), nil
+	default:
+		ports := append([]int(nil), core.TopPorts...)
+		return ports, fmt.Sprintf("[*] No port specified, using bundled top %d ports...", len(ports)), nil
+	}
+}
+
+func resolveScanProfiles() ([]core.ScanProfile, error) {
+	profiles := make([]core.ScanProfile, 0, 4)
+	if conf.GlobalOps.Synscan {
+		profiles = append(profiles, core.ScanProfile{
+			Name:      "tcp-syn",
+			Protocol:  syscall.IPPROTO_TCP,
+			ScanFlags: core.FlagSYN,
+			ScanKind:  core.ScanKindTCPSYN,
+		})
+	}
+	if conf.GlobalOps.Ackscan {
+		profiles = append(profiles, core.ScanProfile{
+			Name:      "tcp-ack",
+			Protocol:  syscall.IPPROTO_TCP,
+			ScanFlags: core.FlagACK,
+			ScanKind:  core.ScanKindTCPACK,
+		})
+	}
+	if conf.GlobalOps.Windowscan {
+		profiles = append(profiles, core.ScanProfile{
+			Name:      "tcp-window",
+			Protocol:  syscall.IPPROTO_TCP,
+			ScanFlags: core.FlagACK,
+			ScanKind:  core.ScanKindTCPWINDOW,
+		})
+	}
+	if conf.GlobalOps.Udpscan {
+		profiles = append(profiles, core.ScanProfile{
+			Name:     "udp",
+			Protocol: syscall.IPPROTO_UDP,
+			ScanKind: core.ScanKindUDP,
+		})
+	}
+	if len(profiles) == 0 {
+		profiles = core.DefaultPortScanProfiles()
+	}
+	return profiles, nil
+}
+
+func describeScanProfiles(profiles []core.ScanProfile) string {
+	return strings.Join(profileNames(profiles), ", ")
+}
+
+func profileNames(profiles []core.ScanProfile) []string {
+	names := make([]string, 0, len(profiles))
+	for _, profile := range profiles {
+		names = append(names, profile.Name)
+	}
+	return names
+}
+
+func resolveOutputConfig() error {
+	conf.GlobalOps.IsOutputFile = conf.GlobalOps.OutputFile != ""
+	if !conf.GlobalOps.IsOutputFile {
+		if conf.GlobalOps.OutputFormat != "" {
+			return fmt.Errorf("--output-format 需要与 --output 一起使用")
+		}
+		return nil
+	}
+
+	format := strings.ToLower(strings.TrimSpace(conf.GlobalOps.OutputFormat))
+	if format == "" {
+		switch strings.ToLower(filepath.Ext(conf.GlobalOps.OutputFile)) {
+		case ".yaml", ".yml":
+			format = "yaml"
+		case ".json":
+			format = "json"
+		default:
+			format = "json"
 		}
 	}
-	return ints, nil
+
+	switch format {
+	case "json", "yaml":
+		conf.GlobalOps.OutputFormat = format
+		return nil
+	default:
+		return fmt.Errorf("不支持的输出格式 %q，仅支持 json 或 yaml", conf.GlobalOps.OutputFormat)
+	}
 }
 
 func parsePorts(s string) ([]int, error) {
@@ -298,7 +429,7 @@ func parsePorts(s string) ([]int, error) {
 	for p := range portSet {
 		ports = append(ports, p)
 	}
-	//sort.Ints(ports)
+	sort.Ints(ports)
 
 	return ports, nil
 }

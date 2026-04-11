@@ -56,7 +56,7 @@ func printResult(res ScanResult) {
 		protoStr = "ICMP"
 	}
 
-	if res.State == "Open" {
+	if res.State == "open" {
 		// 使用特殊的颜色或前缀标识重要发现
 		fmt.Printf("[+] Discovered Open Port: %s:%d/%s\n", ipStr, res.Port, protoStr)
 	}

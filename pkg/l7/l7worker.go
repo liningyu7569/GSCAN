@@ -3,6 +3,7 @@ package l7
 import (
 	"fmt"
 	"net"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -10,129 +11,321 @@ import (
 
 // 全局静态缓存
 var (
-	CachedNullProbe    *Probe
-	CachedGenericProbe *Probe
+	CachedTCPNullProbe         *Probe
+	CachedTCPGenericProbe      *Probe
+	CachedTCPGenericLinesProbe *Probe
 )
 
 func CacheCommonProbes() {
 	for _, p := range GlobalProbes {
 		if p.Name == "NULL" {
-			CachedNullProbe = p
+			CachedTCPNullProbe = p
 		} else if p.Name == "GetRequest" {
-			CachedGenericProbe = p
+			CachedTCPGenericProbe = p
+		} else if p.Name == "GenericLines" {
+			CachedTCPGenericLinesProbe = p
 		}
 	}
 }
 
-// IdentifyService 核心逻辑 (加入最高价值遗留物机制)
-func IdentifyService(ip string, port uint16, protocol uint8, buf *[]byte) (service string, banner string) {
+// IdentifyService 核心逻辑。只在协议内选择候选探针，并接入 sslports/fallback。
+func IdentifyService(ip string, port uint16, protocol uint8, buf *[]byte) Fingerprint {
 	targetAddr := fmt.Sprintf("%s:%d", ip, port)
-	targetedProbes := PortProbeIndex[int(port)]
+	network, ok := protocolToNetwork(protocol)
+	if !ok {
+		return Fingerprint{Service: "unknown"}
+	}
 
-	network := "tcp"
-	if protocol == syscall.IPPROTO_UDP {
-		network = "udp"
+	candidates := selectCandidateProbes(port, protocol)
+	if len(candidates) == 0 {
+		return Fingerprint{Service: "unknown"}
 	}
 
 	// 用于记录所有探针尝试中，服务器返回的最长的一段数据
 	var bestRawData []byte
 
-	// 1. 尝试 NULL 探针
-	service, banner, raw := tryProbe(network, targetAddr, CachedNullProbe, buf)
-	if service != "" {
-		return service, banner
-	}
-	if len(raw) > len(bestRawData) {
-		bestRawData = append([]byte{}, raw...) // 拷贝保存
-	}
-
-	// 2. 尝试针对性探针
-	for _, probe := range targetedProbes {
-		if probe.Protocol != "TCP" && network == "tcp" {
-			continue
-		}
-		if probe.Protocol != "UDP" && network == "udp" {
-			continue
-		}
-
-		service, banner, raw = tryProbe(network, targetAddr, probe, buf)
-		if service != "" {
-			return service, banner
+	for _, probe := range candidates {
+		fp, raw := tryProbe(network, targetAddr, probe, buf)
+		if fp.Service != "" {
+			return fp
 		}
 		if len(raw) > len(bestRawData) {
-			bestRawData = append([]byte{}, raw...)
+			bestRawData = append(bestRawData[:0], raw...)
 		}
 	}
 
-	// 3. 通用后备探针 (HTTP GET)
-	if len(targetedProbes) == 0 && network == "tcp" {
-		service, banner, raw = tryProbe(network, targetAddr, CachedGenericProbe, buf)
-		if service != "" {
-			return service, banner
-		}
-		if len(raw) > len(bestRawData) {
-			bestRawData = append([]byte{}, raw...)
-		}
-	}
-
-	// 4. 彻底未命中 (unknown 兜底处理)
+	// 彻底未命中 (unknown 兜底处理)
 	// 虽然正则没认出来，但如果服务器吐了数据，我们把它洗干净展示出来！
 	if len(bestRawData) > 0 {
-		return "unknown", extractSafeBanner(bestRawData)
+		return Fingerprint{
+			Service: "unknown",
+			Banner:  extractSafeBanner(bestRawData),
+		}
 	}
 
-	return "unknown", ""
+	return Fingerprint{Service: "unknown"}
 }
 
-// tryProbe 修改返回值：多返回一个 []byte (本次读到的原始数据)
-func tryProbe(network string, targetAddr string, probe *Probe, buf *[]byte) (string, string, []byte) {
-	if probe == nil {
-		return "", "", nil
+func protocolToNetwork(protocol uint8) (string, bool) {
+	switch protocol {
+	case syscall.IPPROTO_TCP:
+		return "tcp", true
+	case syscall.IPPROTO_UDP:
+		return "udp", true
+	default:
+		return "", false
+	}
+}
+
+func selectCandidateProbes(port uint16, protocol uint8) []*Probe {
+	probeProtocol, ok := probeProtocolName(protocol)
+	if !ok {
+		return nil
 	}
 
-	conn, err := net.DialTimeout(network, targetAddr, 2*time.Second)
+	candidates := make([]*Probe, 0, 8)
+	seen := make(map[string]struct{})
+
+	if probeProtocol == "TCP" {
+		appendCandidateProbe(&candidates, seen, CachedTCPNullProbe, probeProtocol)
+	}
+
+	targeted := orderedPortProbes(port, probeProtocol)
+	hadTargeted := len(targeted) > 0
+	for _, probe := range targeted {
+		appendProbeWithFallbacks(&candidates, seen, probe, probeProtocol)
+	}
+
+	if probeProtocol == "TCP" && !hadTargeted {
+		appendProbeWithFallbacks(&candidates, seen, CachedTCPGenericLinesProbe, probeProtocol)
+		appendProbeWithFallbacks(&candidates, seen, CachedTCPGenericProbe, probeProtocol)
+	}
+
+	return candidates
+}
+
+func orderedPortProbes(port uint16, protocol string) []*Probe {
+	raw := PortProbeIndex[int(port)]
+	if len(raw) == 0 {
+		return nil
+	}
+
+	targeted := make([]*Probe, 0, len(raw))
+	for _, probe := range raw {
+		if probe != nil && probe.Protocol == protocol {
+			targeted = append(targeted, probe)
+		}
+	}
+
+	sort.SliceStable(targeted, func(i, j int) bool {
+		if rarityI, rarityJ := probeRarity(targeted[i]), probeRarity(targeted[j]); rarityI != rarityJ {
+			return rarityI < rarityJ
+		}
+		if scopeI, scopeJ := probeScopeSize(targeted[i]), probeScopeSize(targeted[j]); scopeI != scopeJ {
+			return scopeI < scopeJ
+		}
+		return targeted[i].Sequence < targeted[j].Sequence
+	})
+
+	return targeted
+}
+
+func probeRarity(probe *Probe) int {
+	if probe == nil || probe.Rarity <= 0 {
+		return 5
+	}
+	return probe.Rarity
+}
+
+func probeScopeSize(probe *Probe) int {
+	if probe == nil {
+		return 1 << 30
+	}
+
+	size := len(probe.Ports)
+	seen := make(map[int]struct{}, len(probe.Ports))
+	for _, port := range probe.Ports {
+		seen[port] = struct{}{}
+	}
+	for _, port := range probe.SSLPorts {
+		if _, ok := seen[port]; !ok {
+			size++
+		}
+	}
+	if size == 0 {
+		return 1 << 30
+	}
+	return size
+}
+
+func probeProtocolName(protocol uint8) (string, bool) {
+	switch protocol {
+	case syscall.IPPROTO_TCP:
+		return "TCP", true
+	case syscall.IPPROTO_UDP:
+		return "UDP", true
+	default:
+		return "", false
+	}
+}
+
+func appendProbeWithFallbacks(dst *[]*Probe, seen map[string]struct{}, probe *Probe, protocol string) {
+	if probe == nil {
+		return
+	}
+	appendCandidateProbe(dst, seen, probe, protocol)
+	for _, name := range splitFallbackNames(probe.Fallback) {
+		appendProbeWithFallbackByName(dst, seen, name, protocol)
+	}
+}
+
+func appendProbeWithFallbackByName(dst *[]*Probe, seen map[string]struct{}, name string, protocol string) {
+	probe, ok := ProbeNameIndex[name]
+	if !ok || probe == nil || probe.Protocol != protocol {
+		return
+	}
+	if _, exists := seen[probe.Name]; exists {
+		return
+	}
+	appendCandidateProbe(dst, seen, probe, protocol)
+	for _, fallbackName := range splitFallbackNames(probe.Fallback) {
+		appendProbeWithFallbackByName(dst, seen, fallbackName, protocol)
+	}
+}
+
+func appendCandidateProbe(dst *[]*Probe, seen map[string]struct{}, probe *Probe, protocol string) {
+	if probe == nil || probe.Protocol != protocol {
+		return
+	}
+	if _, exists := seen[probe.Name]; exists {
+		return
+	}
+	seen[probe.Name] = struct{}{}
+	*dst = append(*dst, probe)
+}
+
+func splitFallbackNames(fallback string) []string {
+	if fallback == "" {
+		return nil
+	}
+
+	parts := strings.Split(fallback, ",")
+	names := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			names = append(names, part)
+		}
+	}
+	return names
+}
+
+// tryProbe 返回命中的结构化指纹，以及本次采集到的原始数据。
+func tryProbe(network string, targetAddr string, probe *Probe, buf *[]byte) (Fingerprint, []byte) {
+	if probe == nil {
+		return Fingerprint{}, nil
+	}
+
+	if network == "udp" && len(probe.Payload) == 0 {
+		return Fingerprint{}, nil
+	}
+
+	dialTimeout := 2 * time.Second
+	if probe.TotalWait > 0 && probe.TotalWait < dialTimeout {
+		dialTimeout = probe.TotalWait
+	}
+
+	conn, err := net.DialTimeout(network, targetAddr, dialTimeout)
 	if err != nil {
-		return "", "", nil
+		return Fingerprint{}, nil
 	}
 	defer conn.Close()
 
-	readTimeout := 3 * time.Second
-	if len(probe.Payload) > 0 {
-		readTimeout = 2 * time.Second
-	}
-	_ = conn.SetDeadline(time.Now().Add(readTimeout))
+	_ = conn.SetWriteDeadline(time.Now().Add(dialTimeout))
 
 	if len(probe.Payload) > 0 {
 		if _, err := conn.Write(probe.Payload); err != nil {
-			return "", "", nil
+			return Fingerprint{}, nil
 		}
 	}
 
-	n, err := conn.Read(*buf)
-	if n <= 0 {
-		return "", "", nil
+	receivedData := readProbeResponse(conn, network, probe, buf)
+	if len(receivedData) == 0 {
+		return Fingerprint{}, nil
 	}
-
-	receivedData := (*buf)[:n]
 
 	// 执行正则匹配
 	for _, rule := range probe.Matches {
 		groups := rule.Pattern.FindSubmatch(receivedData)
 		if groups != nil {
-			versionStr := buildVersionInfo(rule, groups)
-
-			// 如果模板没提取出信息，使用明文兜底
-			if versionStr == "" {
-				// 【核心防乱码拦截】绝不对二进制协议进行暴力字符提取！
-				if !isBinaryProtocol(rule.Service) {
-					versionStr = extractSafeBanner(receivedData)
-				}
-			}
-			return rule.Service, versionStr, receivedData
+			return buildFingerprintFromRule(rule, groups, receivedData), receivedData
 		}
 	}
 
-	return "", "", receivedData
+	return Fingerprint{}, receivedData
+}
+
+func readProbeResponse(conn net.Conn, network string, probe *Probe, buf *[]byte) []byte {
+	if buf == nil || len(*buf) == 0 {
+		return nil
+	}
+
+	waitBudget := probeReadBudget(probe)
+	overallDeadline := time.Now().Add(waitBudget)
+	idleGap := probeIdleGap(waitBudget)
+	total := 0
+
+	for total < len(*buf) {
+		readDeadline := overallDeadline
+		if total > 0 {
+			idleDeadline := time.Now().Add(idleGap)
+			if idleDeadline.Before(readDeadline) {
+				readDeadline = idleDeadline
+			}
+		}
+		_ = conn.SetReadDeadline(readDeadline)
+
+		n, err := conn.Read((*buf)[total:])
+		if n > 0 {
+			total += n
+			if network == "udp" || total == len(*buf) {
+				break
+			}
+			continue
+		}
+		if err != nil {
+			if total > 0 {
+				break
+			}
+			return nil
+		}
+	}
+
+	if total == 0 {
+		return nil
+	}
+	return (*buf)[:total]
+}
+
+func probeReadBudget(probe *Probe) time.Duration {
+	if probe != nil && probe.TotalWait > 0 {
+		return probe.TotalWait
+	}
+	if probe != nil && len(probe.Payload) > 0 {
+		return 2 * time.Second
+	}
+	return 3 * time.Second
+}
+
+func probeIdleGap(waitBudget time.Duration) time.Duration {
+	gap := waitBudget / 4
+	if gap < 200*time.Millisecond {
+		return 200 * time.Millisecond
+	}
+	if gap > 500*time.Millisecond {
+		return 500 * time.Millisecond
+	}
+	return gap
 }
 
 // isBinaryProtocol 判定是否为常见的二进制协议，防止终端乱码
@@ -145,32 +338,12 @@ func isBinaryProtocol(service string) bool {
 	}
 }
 
-// buildVersionInfo 组装提取的模板信息
-func buildVersionInfo(rule MatchRule, groups [][]byte) string {
-	var parts []string
-	if rule.Product != "" {
-		parts = append(parts, expandGroup(rule.Product, groups))
-	}
-	if rule.Version != "" {
-		parts = append(parts, expandGroup(rule.Version, groups))
-	}
-	if rule.Info != "" {
-		parts = append(parts, "("+expandGroup(rule.Info, groups)+")")
-	}
-	return strings.Join(parts, " ")
-}
-
-func expandGroup(template string, groups [][]byte) string {
-	res := template
-	for i := 1; i < len(groups); i++ {
-		placeholder := fmt.Sprintf("$%d", i)
-		res = strings.ReplaceAll(res, placeholder, string(groups[i]))
-	}
-	return res
-}
-
 // extractSafeBanner 清洗乱码，极致压缩空白符
 func extractSafeBanner(data []byte) string {
+	return sanitizePrintableText(data, 55)
+}
+
+func sanitizePrintableText(data []byte, maxLen int) string {
 	// 剔除所有非 ASCII 可见字符
 	var result []rune
 	for _, r := range string(data) {
@@ -184,8 +357,8 @@ func extractSafeBanner(data []byte) string {
 	// 它会将 "HTTP/1.1 200 OK \r\n Server: nginx" 压缩为 "HTTP/1.1 200 OK Server: nginx"
 	resStr := strings.Join(strings.Fields(string(result)), " ")
 
-	if len(resStr) > 55 {
-		resStr = resStr[:52] + "..."
+	if maxLen > 0 && len(resStr) > maxLen {
+		resStr = resStr[:maxLen-3] + "..."
 	}
 	return resStr
 }

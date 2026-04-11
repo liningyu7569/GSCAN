@@ -3,9 +3,7 @@ package core
 import (
 	"Going_Scan/pkg/conf"
 	"context"
-	"encoding/json"
 	"fmt"
-	"os"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -113,6 +111,8 @@ func protocolToStr(p uint8) string {
 		return "TCP"
 	case syscall.IPPROTO_UDP:
 		return "UDP"
+	case syscall.IPPROTO_ICMP:
+		return "ICMP"
 	default:
 		return fmt.Sprintf("UNKNOWN(%d)", p)
 	}
@@ -120,20 +120,12 @@ func protocolToStr(p uint8) string {
 
 // RunResultPersister 持久化大管家：专职负责战果的终端回显与多路落盘
 func RunResultPersister() {
-	var file *os.File
-	var err error
-	var encoder *json.Encoder
+	var aggregator *PortraitAggregator
 
-	// 1. JSONL 文件落盘初始化 (直接读取全局配置)
+	// 1. 最终画像文件输出初始化
 	if conf.GlobalOps.IsOutputFile && conf.GlobalOps.OutputFile != "" {
-		file, err = os.OpenFile(conf.GlobalOps.OutputFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-		if err != nil {
-			fmt.Printf("[!] 无法创建 JSONL 输出文件: %v\n", err)
-		} else {
-			defer file.Close()
-			encoder = json.NewEncoder(file)
-			fmt.Printf("[+] 战果将实时持久化至: %s\n", conf.GlobalOps.OutputFile)
-		}
+		aggregator = NewPortraitAggregator()
+		fmt.Printf("[+] 扫描完成后将输出聚合画像至: %s\n", conf.GlobalOps.OutputFile)
 	}
 
 	// 2. SQLite 落盘钩子初始化 (预留)
@@ -144,17 +136,18 @@ func RunResultPersister() {
 	// 3. 消费全局唯一的 ResultStream
 	for result := range ResultStream {
 		protoStr := protocolToStr(result.Protocol)
+		stateColor := ColorYellow
+		if result.State == "open" {
+			stateColor = ColorGreen
+		}
 
 		// ----------------------------------------------------
 		// 终端可视化回显 (区分 -V 模式与普通模式)
 		// ----------------------------------------------------
 		if result.Service == "" {
-			// 极速端口透传模式
-			fmt.Printf("[+] %-15s %5d/%-3s %sopen%s\n",
-				result.IPStr, result.Port, protoStr, ColorGreen, ColorReset)
+			fmt.Printf("[+] %-15s %5d/%-3s %-10s %s%s%s\n",
+				result.IPStr, result.Port, protoStr, result.Method, stateColor, result.State, ColorReset)
 		} else if result.Service != "unreachable" {
-			// 服务指纹模式 (-V)
-			// 如果是 unknown，标黄；否则标青色
 			serviceColor := ColorCyan
 			if result.Service == "unknown" {
 				serviceColor = ColorYellow
@@ -166,42 +159,31 @@ func RunResultPersister() {
 				bannerStr = bannerStr[:47] + "..."
 			}
 
-			fmt.Printf("[+] %-15s %5d/%-3s %sopen%s  %-12s %s\n",
+			fmt.Printf("[+] %-15s %5d/%-3s %-10s %s%s%s  %-12s %s\n",
 				result.IPStr,
 				result.Port,
 				protoStr,
-				ColorGreen, ColorReset,
+				result.Method,
+				stateColor, result.State, ColorReset,
 				serviceColor+result.Service+ColorReset,
 				ColorBlue+bannerStr+ColorReset)
 		}
 
-		// ----------------------------------------------------
-		// 磁盘持久化一：JSON Lines
-		// ----------------------------------------------------
-		if encoder != nil {
-			// 重组结构体，隐藏 uint8 协议号，输出直观的字符串，并利用 omitempty 保持文件整洁
-			outputData := struct {
-				IP       string `json:"ip"`
-				Port     uint16 `json:"port"`
-				Protocol string `json:"protocol"`
-				State    string `json:"state"`
-				Service  string `json:"service,omitempty"`
-				Banner   string `json:"banner,omitempty"`
-			}{
-				IP:       result.IPStr,
-				Port:     result.Port,
-				Protocol: protoStr,
-				State:    result.State,
-				Service:  result.Service,
-				Banner:   result.Banner,
-			}
-			_ = encoder.Encode(outputData)
+		if aggregator != nil {
+			aggregator.Add(result)
 		}
 
 		// ----------------------------------------------------
-		// 磁盘持久化二：SQLite (钩子调用)
+		// 磁盘持久化：SQLite (钩子调用)
 		// ----------------------------------------------------
 		saveToSQLiteHook(result, protoStr)
+	}
+
+	if aggregator != nil {
+		report := aggregator.Build(GetRunMetadata(), time.Now())
+		if err := WritePortraitReport(conf.GlobalOps.OutputFile, conf.GlobalOps.OutputFormat, report); err != nil {
+			fmt.Printf("[!] 无法写入聚合画像文件: %v\n", err)
+		}
 	}
 
 	fmt.Println("============================")

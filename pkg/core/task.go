@@ -10,6 +10,7 @@ type EmissionTask struct {
 	RouteID         uint16 // 指向全局只读路由表的索引，解决多网卡/多 MAC 问题
 	Protocol        uint8  // syscall.IPPROTO_TCP, UDP, ICMP 等
 	ScanFlags       uint8  // TCP 标志位 (如 SYN 0x02, ACK 0x10)
+	ScanKind        uint8  // 扫描方法：SYN/ACK/Window/UDP
 	IsHostDiscovery bool   //是否为探活任务
 }
 

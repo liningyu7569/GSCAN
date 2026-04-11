@@ -26,7 +26,7 @@ type Generator interface {
 }
 
 // IP初始化
-func NewContainer(inputs []string, exclides []string) (Iterator, error) {
+func NewContainer(inputs []string, exclides []string, randomize bool) (Iterator, error) {
 	c := &Container{
 		generator:  make([]Generator, 0),
 		excludeMap: make(map[string]bool),
@@ -44,7 +44,7 @@ func NewContainer(inputs []string, exclides []string) (Iterator, error) {
 	//初始化输入IP
 	for _, input := range inputs {
 		//执行选择解析函数
-		gen, err := selectStrategy(input)
+		gen, err := selectStrategy(input, randomize)
 		if err != nil {
 			return nil, err
 		}
@@ -98,11 +98,17 @@ func (c *Container) Count() uint64 {
 }
 
 // 选择解析函数
-func selectStrategy(input string) (Generator, error) {
+func selectStrategy(input string, randomize bool) (Generator, error) {
 	if strings.Contains(input, "/") {
-		return newLCGCIDRGen(input)
+		if randomize {
+			return newLCGCIDRGen(input)
+		}
+		return newCIDRGen(input)
 	} else if strings.Contains(input, "-") {
-		return newLCGRangeGen(input)
+		if randomize {
+			return newLCGRangeGen(input)
+		}
+		return newRangeGen(input)
 	} else {
 		return newSingleGen(input)
 	}
