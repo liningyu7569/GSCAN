@@ -63,6 +63,7 @@ type GlobalConfig struct {
 	OutputFile        string //output file path
 	OutputFormat      string
 	IsOutputFile      bool
+	UAMDBPath         string
 }
 
 func (g *GlobalConfig) Af() int {

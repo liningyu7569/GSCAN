@@ -273,8 +273,11 @@ func (e *Engine) LaunchProbe(ctx context.Context, channelID uint16, task Emissio
 			if conf.GlobalOps.TimingLevel <= 3 {
 				e.decreaseCWND()
 			}
-			if !task.IsHostDiscovery && attempt == maxRetries && shouldEmitResult(task.ScanKind, ScanStateFiltered) {
-				e.emitScanResult(ctx, task, ScanStateFiltered)
+			if !task.IsHostDiscovery && attempt == maxRetries {
+				recordUAMRawL4Result(task, ScanStateFiltered)
+				if shouldEmitResult(task.ScanKind, ScanStateFiltered) {
+					e.emitScanResult(ctx, task, ScanStateFiltered)
+				}
 			}
 			continue
 		} else {
@@ -284,6 +287,7 @@ func (e *Engine) LaunchProbe(ctx context.Context, channelID uint16, task Emissio
 
 			if task.IsHostDiscovery {
 				if resultTensor.IsHostAlive(task.Protocol) {
+					recordUAMHostDiscovery(task)
 					if markAlive(task.TargetIP) {
 						ipStr := util.Uint32ToIP(task.TargetIP).String()
 						fmt.Printf("%s is alive\n", ipStr)
@@ -305,6 +309,7 @@ func (e *Engine) LaunchProbe(ctx context.Context, channelID uint16, task Emissio
 			if state == ScanStateOpen {
 				MetricOpenPorts.Add(uint64(channelID), 1)
 			}
+			recordUAMRawL4Result(task, state)
 			if shouldEmitResult(task.ScanKind, state) {
 				e.emitScanResult(ctx, task, state)
 			}

@@ -186,26 +186,11 @@ func RunResultPersister() {
 		}
 	}
 
+	closeSQLiteHook()
+
 	fmt.Println("============================")
 	fmt.Println("[Persister] 终端回显完毕，所有持久化落盘队列已清空，安全退出。")
 
 	// 敲响最后一记下班铃声！允许 main 函数彻底退出。
 	close(PersistDone)
-}
-
-// =========================================================================
-// SQLite 持久化钩子 (Hooks for Tier-2 Deep Scan)
-// 在下一阶段的漏洞扫描中，关系型数据库能更方便地进行资产聚合、状态追踪和去重
-// =========================================================================
-
-func initSQLiteHook() {
-	// TODO (Phase 2):
-	// 1. 读取 conf.GlobalOps.EnableSQLite 等配置
-	// 2. 初始化 db.Conn 池
-	// 3. 执行 CREATE TABLE IF NOT EXISTS assets (...)
-}
-
-func saveToSQLiteHook(result ScanResult, protoStr string) {
-	// TODO (Phase 2):
-	// 执行 INSERT OR REPLACE INTO assets (ip, port, protocol, service, banner) VALUES (...)
 }

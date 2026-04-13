@@ -59,6 +59,7 @@ func init() {
 	f.IntVar(&conf.GlobalOps.TopPort, "top-ports", 0, "Scan the first <number> bundled common ports (max 100)")
 	f.StringVarP(&conf.GlobalOps.OutputFile, "output", "o", "", "Write the aggregated scan portrait to a file")
 	f.StringVar(&conf.GlobalOps.OutputFormat, "output-format", "", "Output portrait format: json or yaml")
+	f.StringVar(&conf.GlobalOps.UAMDBPath, "uam-db", "", "Write observations, claims, and projections into the UAM SQLite database at this path")
 	f.BoolVarP(&conf.GlobalOps.RandomizeHosts, "randomize-hosts", "", true, "Randomize target scan order")
 
 	// --- 3. 性能与时序 (Timing & Performance) ---
@@ -111,6 +112,19 @@ func runScan(cmd *cobra.Command, args []string) error {
 	if conf.GlobalOps.IsOutputFile {
 		fmt.Printf("[*] Aggregated portrait output: %s (%s)\n", conf.GlobalOps.OutputFile, conf.GlobalOps.OutputFormat)
 	}
+	if strings.TrimSpace(conf.GlobalOps.UAMDBPath) != "" {
+		fmt.Printf("[*] UAM SQLite output: %s\n", conf.GlobalOps.UAMDBPath)
+	}
+
+	core.SetRunMetadata(core.RunMetadata{
+		Command:      strings.Join(os.Args, " "),
+		Targets:      append([]string(nil), conf.GlobalOps.InputS...),
+		Ports:        append([]int(nil), ports...),
+		Profiles:     profileNames(scanProfiles),
+		ServiceScan:  conf.GlobalOps.Servicescan,
+		OutputFile:   conf.GlobalOps.OutputFile,
+		OutputFormat: conf.GlobalOps.OutputFormat,
+	})
 
 	if err := routing.InitRouter(); err != nil {
 		return fmt.Errorf("routing initialization failed: %w", err)
@@ -122,6 +136,7 @@ func runScan(cmd *cobra.Command, args []string) error {
 	if routeInfo == nil {
 		return fmt.Errorf("无法获取本机默认网络接口")
 	}
+	core.InitUAMHook()
 	go core.RunResultPersister()
 	localIPStr := routeInfo.SrcIP.String()
 	deviceName := routeInfo.DeviceName
@@ -147,16 +162,6 @@ func runScan(cmd *cobra.Command, args []string) error {
 	if conf.GlobalOps.Servicescan {
 		l7.InitNmapParser()
 	}
-
-	core.SetRunMetadata(core.RunMetadata{
-		Command:      strings.Join(os.Args, " "),
-		Targets:      append([]string(nil), conf.GlobalOps.InputS...),
-		Ports:        append([]int(nil), ports...),
-		Profiles:     profileNames(scanProfiles),
-		ServiceScan:  conf.GlobalOps.Servicescan,
-		OutputFile:   conf.GlobalOps.OutputFile,
-		OutputFormat: conf.GlobalOps.OutputFormat,
-	})
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)

@@ -1,5 +1,91 @@
 # Going_Scan V2 更新日志
 
+**日期**: 2026-04-12  
+**核心更新**: UAM SQLite 契约层正式落地，GS 全链路主要事实开始进入统一资产状态系统
+
+## 本次完成的核心内容
+
+这一轮的重点已经不再是继续堆叠 GS 的扫描方式，而是把当前 GS 已有成果真正沉淀成可查询、可追溯、可扩展的资产状态层。
+
+### 1. UAM 正式从“设计”变成“实现”
+
+当前已经落地：
+
+- `Run`
+- `Host`
+- `Endpoint`
+- `Observation`
+- `Claim`
+- `HostProjectionCurrent`
+- `EndpointProjectionCurrent`
+- `ModuleResult`
+
+并已完成 SQLite schema、索引、视图以及基础写入路径。
+
+这意味着当前仓库里已经不再只有“扫描结果导出”，而是开始具备真正的资产状态骨架。
+
+### 2. GS 已经能把主要事实写入 UAM
+
+当前 GS 进入 UAM 的内容已经覆盖：
+
+- Run 元数据
+- 主机探活事实
+- L4 端口扫描事实
+- L7 服务识别 enrichment
+- Host / Endpoint 当前 Projection
+
+特别重要的一点是：
+
+当前不再只是把最终画像塞进 SQLite，而是把主机探活、L4 Observation、L7 Observation、Claim、Projection 都按正式模型推进。
+
+### 3. 查询能力已经形成最小可用闭环
+
+当前已经新增：
+
+- `uam runs`
+- `uam hosts`
+- `uam endpoints`
+- `uam observations`
+- `uam report`
+
+其中 `uam report` 已经可以根据 IP 输出一份面向人的综合报告，既展示当前状态，也展示支撑这些状态的扫描事实。
+
+### 4. gping / 专项扫描的 UAM 契约已经准备好
+
+虽然 gping 和专项扫描执行器还没有正式落地，但当前 UAM 侧已经把后续需要的核心入口准备好：
+
+- gping 的 Observation / Claim / Projection 入口
+- `manual`
+- `override`
+- `verification_state`
+- module 的 ModuleResult 正式写入入口
+
+这意味着后续真正写 gping 时，已经不需要返工底层数据层。
+
+## 这次刻意没有做的事情
+
+为了保证 UAM 先稳住对象边界和写入路径，这一轮没有去提前做：
+
+- gping 执行器本体
+- HTTP / TLS / SSH 等专项扫描执行器
+- 更复杂的前端查询界面
+- 大规模批量写入优化
+
+这些都属于下一阶段建立在当前契约层上的工作，而不应反过来主导当前结构。
+
+## 当前阶段结论
+
+截至 2026-04-12，Going_Scan 当前已经形成两层正式输出：
+
+1. 扫描层：高速发现 + 服务识别 + 最终画像
+2. 状态层：UAM SQLite 资产契约层
+
+当前系统的意义已经从“能扫出来”进一步推进到：
+
+> 能把 GS 当前得到的主要事实沉淀成一个正式、可查询、可追溯的资产状态系统。
+
+---
+
 **日期**: 2026-04-11  
 **核心更新**: 第一阶段末尾收口完成，L4 多协议扫描与可靠 L7 指纹识别正式贯通
 
