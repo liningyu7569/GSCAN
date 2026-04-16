@@ -1,0 +1,1474 @@
+/opt/homebrew/Caskroom/miniconda/base/lib/python3.13/site-packages/requests/__init__.py:113: RequestsDependencyWarning: urllib3 (2.3.0) or chardet (7.1.0)/charset_normalizer (2.0.12) doesn't match a supported version!
+  warnings.warn(
+(base) liningyu@LiNingyudeMacBook-Air GSCAN_2_gping % go build -o goscan .
+(base) liningyu@LiNingyudeMacBook-Air GSCAN_2_gping % mkdir -p manual-test
+(base) liningyu@LiNingyudeMacBook-Air GSCAN_2_gping % cd manual-test
+(base) liningyu@LiNingyudeMacBook-Air manual-test % TARGET=123.57.225.114
+(base) liningyu@LiNingyudeMacBook-Air manual-test % TCP_PORTS=21,22,80,443,8089
+(base) liningyu@LiNingyudeMacBook-Air manual-test % UDP_PORTS=53,123,161
+(base) liningyu@LiNingyudeMacBook-Air manual-test % DB=manual-uam.db
+(base) liningyu@LiNingyudeMacBook-Air manual-test % sudo ../goscan gping templates
+Password:
+Sorry, try again.
+Password:
+gping templates
+
+- dns/basic-confirm  routes=app  actions=1
+  Confirm whether an endpoint behaves like a DNS service with a lightweight query
+- ftp/basic-confirm  routes=app  actions=1
+  Confirm whether an endpoint behaves like an FTP control service by reading its welcome banner
+- http/reverse-proxy-confirm  routes=app  actions=2
+  Confirm whether an endpoint behaves like a reverse proxy
+- mysql/basic-confirm  routes=app  actions=1
+  Confirm whether an endpoint behaves like a MySQL service by reading the greeting handshake
+- raw/basic-syn-check  routes=raw  actions=1
+  Send a single raw TCP SYN probe to validate an endpoint state
+- redis/basic-confirm  routes=app  actions=1
+  Confirm whether an endpoint behaves like a Redis instance with a lightweight PING
+- smtp/basic-confirm  routes=app  actions=1
+  Confirm whether an endpoint behaves like an SMTP service by reading its banner
+- ssh/basic-confirm  routes=app  actions=1
+  Confirm whether an endpoint behaves like an SSH service by reading its identification banner
+- stack/basic-banner-read  routes=stack  actions=1
+  Open a TCP connection and capture the first service banner for lightweight confirmation
+- uam/dns-enrich  routes=app  actions=1
+  Enrich a UAM DNS endpoint with a lightweight recursive-style query
+- uam/ftp-enrich  routes=app  actions=3
+  Enrich a UAM FTP endpoint with FEAT and AUTH TLS control-plane evidence
+- uam/https-enrich  routes=app,stack  actions=4
+  Enrich a UAM HTTPS endpoint with TCP, TLS, and basic HTTP context
+- uam/mysql-enrich  routes=app  actions=3
+  Enrich a UAM MySQL endpoint with greeting, capability, and TLS upgrade evidence
+- uam/redis-enrich  routes=app  actions=3
+  Enrich a UAM Redis endpoint with PING and INFO evidence
+- uam/smtp-enrich  routes=app  actions=3
+  Enrich a UAM SMTP endpoint with EHLO and STARTTLS evidence
+- uam/ssh-enrich  routes=app  actions=3
+  Enrich a UAM SSH endpoint with banner, KEXINIT, and host key evidence
+(base) liningyu@LiNingyudeMacBook-Air manual-test % sudo ../goscan scan $TARGET \
+  -p $TCP_PORTS \
+  --syn --ack --window \
+  -V \
+  -o gs-tcp-full.json \
+  --output-format json \
+  --uam-db $DB
+[*] Scanning 5 explicitly selected ports...
+[*] L4 scan profiles: tcp-syn, tcp-ack, tcp-window
+[*] Aggregated portrait output: gs-tcp-full.json (json)
+[*] UAM SQLite output: manual-uam.db
+[*] Starting Going_Scan V2 Engine...
+[UAM] 已接入 SQLite 资产契约层: manual-uam.db
+[+] 扫描完成后将输出聚合画像至: gs-tcp-full.json
+
+====== [Scan Results] ======
+[Pcap] 网卡 en0 监听就绪, BPF: dst host 172.20.10.2 and (tcp or udp or icmp)
+[L7-Parser] 引擎点火：正在深度编译 Nmap 指纹库...
+[!] 解析警告 (行 7852): 正则表达式未闭合
+[L7-Parser] 编译完成！载入探针: 187 | 成功编译正则: 11469 | 舍弃不兼容正则: 704
+[Engine] 发射引擎点火，开始消费 EmissionTask...
+[L7-Engine] 成功拉起 1000 个服务探活 Worker，等待 L4 战果移交...
+123.57.225.114 is alive
+[+] 123.57.225.114     22/TCP tcp-syn    open  ssh OpenSSH 8.7 (protocol 2.0)
+[+] 123.57.225.114   8089/TCP tcp-window filtered
+[+] 123.57.225.114     21/TCP tcp-window filtered
+[+] 123.57.225.114    443/TCP tcp-window filtered
+[+] 123.57.225.114     80/TCP tcp-window filtered
+[+] 123.57.225.114    443/TCP tcp-ack    filtered
+[+] 123.57.225.114     80/TCP tcp-ack    filtered
+[+] 123.57.225.114   8089/TCP tcp-ack    filtered
+[+] 123.57.225.114     21/TCP tcp-ack    filtered
+[+] 123.57.225.114     22/TCP tcp-window filtered
+[+] 123.57.225.114     22/TCP tcp-ack    filtered
+[Engine] 所有任务分发完毕，且无在途探针，准备退出...
+[Engine] 等待飞行中的探针返回或超时...
+[Engine] 所有探测任务已安全结束。
+[+] 123.57.225.114    443/TCP tcp-syn    open  ssl
+[+] 123.57.225.114     80/TCP tcp-syn    open  http nginx 1.20.1
+[+] 123.57.225.114   8089/TCP tcp-syn    open  unknown HTTP/1.1 404 Vary: Origin Vary: Access-Control-...
+[L7-Engine] 所有 L7 探测任务安全终结。
+[+] 123.57.225.114     21/TCP tcp-syn    open  unknown
+============================
+[Persister] 终端回显完毕，所有持久化落盘队列已清空，安全退出。
+[*] 完美收工！
+[*] Scan completed.
+(base) liningyu@LiNingyudeMacBook-Air manual-test % sudo ../goscan scan $TARGET \
+  -p $TCP_PORTS \
+  --syn \
+  -V \
+  -o gs-tcp-full.yaml \
+  --output-format yaml
+[*] Scanning 5 explicitly selected ports...
+[*] L4 scan profiles: tcp-syn
+[*] Aggregated portrait output: gs-tcp-full.yaml (yaml)
+[*] Starting Going_Scan V2 Engine...
+[+] 扫描完成后将输出聚合画像至: gs-tcp-full.yaml
+
+====== [Scan Results] ======
+[Pcap] 网卡 en0 监听就绪, BPF: dst host 172.20.10.2 and (tcp or udp or icmp)
+[L7-Parser] 引擎点火：正在深度编译 Nmap 指纹库...
+[!] 解析警告 (行 7852): 正则表达式未闭合
+[L7-Parser] 编译完成！载入探针: 187 | 成功编译正则: 11469 | 舍弃不兼容正则: 704
+[Engine] 发射引擎点火，开始消费 EmissionTask...
+[L7-Engine] 成功拉起 1000 个服务探活 Worker，等待 L4 战果移交...
+123.57.225.114 is alive
+[Engine] 所有任务分发完毕，且无在途探针，准备退出...
+[Engine] 等待飞行中的探针返回或超时...
+[+] 123.57.225.114     22/TCP tcp-syn    open  ssh OpenSSH 8.7 (protocol 2.0)
+[Engine] 所有探测任务已安全结束。
+[+] 123.57.225.114    443/TCP tcp-syn    open  ssl
+[+] 123.57.225.114     80/TCP tcp-syn    open  http nginx 1.20.1
+[+] 123.57.225.114   8089/TCP tcp-syn    open  unknown HTTP/1.1 404 Vary: Origin Vary: Access-Control-...
+[L7-Engine] 所有 L7 探测任务安全终结。
+[+] 123.57.225.114     21/TCP tcp-syn    open  unknown
+============================
+[Persister] 终端回显完毕，所有持久化落盘队列已清空，安全退出。
+[*] 完美收工！
+[*] Scan completed.
+(base) liningyu@LiNingyudeMacBook-Air manual-test % sudo ../goscan scan $TARGET \
+  --udp \
+  -p $UDP_PORTS \
+  -V \
+  -o gs-udp.yaml \
+  --output-format yaml \
+  --uam-db $DB
+[*] Scanning 3 explicitly selected ports...
+[*] L4 scan profiles: udp
+[*] Aggregated portrait output: gs-udp.yaml (yaml)
+[*] UAM SQLite output: manual-uam.db
+[*] Starting Going_Scan V2 Engine...
+[UAM] 已接入 SQLite 资产契约层: manual-uam.db
+[+] 扫描完成后将输出聚合画像至: gs-udp.yaml
+
+====== [Scan Results] ======
+[Pcap] 网卡 en0 监听就绪, BPF: dst host 172.20.10.2 and (tcp or udp or icmp)
+[L7-Parser] 引擎点火：正在深度编译 Nmap 指纹库...
+[!] 解析警告 (行 7852): 正则表达式未闭合
+[L7-Parser] 编译完成！载入探针: 187 | 成功编译正则: 11469 | 舍弃不兼容正则: 704
+[Engine] 发射引擎点火，开始消费 EmissionTask...
+[L7-Engine] 成功拉起 1000 个服务探活 Worker，等待 L4 战果移交...
+123.57.225.114 is alive
+[Engine] 所有任务分发完毕，且无在途探针，准备退出...
+[Engine] 等待飞行中的探针返回或超时...
+[Engine] 所有探测任务已安全结束。
+[L7-Engine] 所有 L7 探测任务安全终结。
+============================
+[Persister] 终端回显完毕，所有持久化落盘队列已清空，安全退出。
+[*] 完美收工！
+[*] Scan completed.
+(base) liningyu@LiNingyudeMacBook-Air manual-test % sudo ../goscan scan $TARGET \
+  -F \
+  -o gs-fast.json \
+  --output-format json
+[*] Fast scan mode enabled (bundled top 100 ports)...
+[*] L4 scan profiles: tcp-syn
+[*] Aggregated portrait output: gs-fast.json (json)
+[*] Starting Going_Scan V2 Engine...
+[+] 扫描完成后将输出聚合画像至: gs-fast.json
+
+====== [Scan Results] ======
+[Pcap] 网卡 en0 监听就绪, BPF: dst host 172.20.10.2 and (tcp or udp or icmp)
+[Engine] 发射引擎点火，开始消费 EmissionTask...
+[L7-Engine] 服务识别 (-V) 未开启，执行光速透传模式...
+123.57.225.114 is alive
+[+] 123.57.225.114     21/TCP tcp-syn    open
+[+] 123.57.225.114    443/TCP tcp-syn    open
+[+] 123.57.225.114     80/TCP tcp-syn    open
+[+] 123.57.225.114     22/TCP tcp-syn    open
+[Engine] 所有任务分发完毕，且无在途探针，准备退出...
+[Engine] 等待飞行中的探针返回或超时...
+[L7-Engine] 所有 L7 探测任务安全终结。
+[Engine] 所有探测任务已安全结束。
+============================
+[Persister] 终端回显完毕，所有持久化落盘队列已清空，安全退出。
+[*] 完美收工！
+[*] Scan completed.
+(base) liningyu@LiNingyudeMacBook-Air manual-test % sudo ../goscan scan $TARGET \
+  --top-ports 20 \
+  -o gs-top20.json \
+  --output-format json
+[*] Scanning bundled top 20 ports...
+[*] L4 scan profiles: tcp-syn
+[*] Aggregated portrait output: gs-top20.json (json)
+[*] Starting Going_Scan V2 Engine...
+[+] 扫描完成后将输出聚合画像至: gs-top20.json
+
+====== [Scan Results] ======
+[Pcap] 网卡 en0 监听就绪, BPF: dst host 172.20.10.2 and (tcp or udp or icmp)
+[Engine] 发射引擎点火，开始消费 EmissionTask...
+[L7-Engine] 服务识别 (-V) 未开启，执行光速透传模式...
+123.57.225.114 is alive
+[+] 123.57.225.114     21/TCP tcp-syn    open
+[+] 123.57.225.114     80/TCP tcp-syn    open
+[+] 123.57.225.114     22/TCP tcp-syn    open
+[+] 123.57.225.114    443/TCP tcp-syn    open
+[Engine] 所有任务分发完毕，且无在途探针，准备退出...
+[Engine] 等待飞行中的探针返回或超时...
+[Engine] 所有探测任务已安全结束。
+[L7-Engine] 所有 L7 探测任务安全终结。
+============================
+[Persister] 终端回显完毕，所有持久化落盘队列已清空，安全退出。
+[*] 完美收工！
+[*] Scan completed.
+(base) liningyu@LiNingyudeMacBook-Air manual-test % sudo ../goscan uam runs --db $DB --limit 10
+[
+  {
+    "run_id": "run-1776298508707677000-f66a58a4015c",
+    "tool": "gs",
+    "module_name": "gs-l4l7",
+    "commandline": "../goscan scan 123.57.225.114 --udp -p 53,123,161 -V -o gs-udp.yaml --output-format yaml --uam-db manual-uam.db",
+    "started_at": "2026-04-16T00:15:08.707663Z",
+    "finished_at": "2026-04-16T00:15:12.142617Z",
+    "service_scan": true
+  },
+  {
+    "run_id": "run-1776298429499211000-819cfecd649c",
+    "tool": "gs",
+    "module_name": "gs-l4l7",
+    "commandline": "../goscan scan 123.57.225.114 -p 21,22,80,443,8089 --syn --ack --window -V -o gs-tcp-full.json --output-format json --uam-db manual-uam.db",
+    "started_at": "2026-04-16T00:13:49.499195Z",
+    "finished_at": "2026-04-16T00:14:05.70569Z",
+    "service_scan": true
+  }
+]
+(base) liningyu@LiNingyudeMacBook-Air manual-test % sudo ../goscan uam hosts --db $DB --ip $TARGET --limit 10
+[
+  {
+    "host_id": "host:123.57.225.114",
+    "ip": "123.57.225.114",
+    "current_reachability": "reachable",
+    "reachability_confidence": 96,
+    "verification_state": "none",
+    "last_seen_at": "2026-04-16T00:15:09.374533Z",
+    "source_tool": "gs"
+  }
+]
+(base) liningyu@LiNingyudeMacBook-Air manual-test % sudo ../goscan uam endpoints --db $DB --ip $TARGET --protocol tcp --limit 20
+[
+  {
+    "endpoint_id": "host:123.57.225.114:tcp:21",
+    "ip": "123.57.225.114",
+    "protocol": "tcp",
+    "port": 21,
+    "current_port_state": "open",
+    "port_state_confidence": 96,
+    "verification_state": "none",
+    "last_seen_at": "2026-04-16T00:13:50.187449Z",
+    "source_tool": "gs"
+  },
+  {
+    "endpoint_id": "host:123.57.225.114:tcp:22",
+    "ip": "123.57.225.114",
+    "protocol": "tcp",
+    "port": 22,
+    "current_port_state": "open",
+    "port_state_confidence": 96,
+    "current_service": "ssh",
+    "current_product": "OpenSSH",
+    "current_version": "8.7",
+    "current_info": "protocol 2.0",
+    "current_banner": "OpenSSH 8.7 (protocol 2.0)",
+    "current_cpes_json": "[\"a:openbsd:openssh:8.7\"]",
+    "verification_state": "none",
+    "last_seen_at": "2026-04-16T00:13:51.06064Z",
+    "source_tool": "gs"
+  },
+  {
+    "endpoint_id": "host:123.57.225.114:tcp:80",
+    "ip": "123.57.225.114",
+    "protocol": "tcp",
+    "port": 80,
+    "current_port_state": "open",
+    "port_state_confidence": 96,
+    "current_service": "http",
+    "current_product": "nginx",
+    "current_version": "1.20.1",
+    "current_banner": "nginx 1.20.1",
+    "current_cpes_json": "[\"a:igor_sysoev:nginx:1.20.1\"]",
+    "verification_state": "none",
+    "last_seen_at": "2026-04-16T00:13:56.336903Z",
+    "source_tool": "gs"
+  },
+  {
+    "endpoint_id": "host:123.57.225.114:tcp:443",
+    "ip": "123.57.225.114",
+    "protocol": "tcp",
+    "port": 443,
+    "current_port_state": "open",
+    "port_state_confidence": 96,
+    "verification_state": "none",
+    "last_seen_at": "2026-04-16T00:13:50.219617Z",
+    "source_tool": "gs"
+  },
+  {
+    "endpoint_id": "host:123.57.225.114:tcp:8089",
+    "ip": "123.57.225.114",
+    "protocol": "tcp",
+    "port": 8089,
+    "current_port_state": "open",
+    "port_state_confidence": 96,
+    "current_banner": "HTTP/1.1 404 Vary: Origin Vary: Access-Control-Reque...",
+    "verification_state": "none",
+    "last_seen_at": "2026-04-16T00:13:58.382836Z",
+    "source_tool": "gs"
+  }
+]
+(base) liningyu@LiNingyudeMacBook-Air manual-test % sudo ../goscan uam observations --db $DB --ip $TARGET --protocol tcp --limit 50
+[
+  {
+    "observation_id": "obs-1776298438382846000-b11eade1c518",
+    "run_id": "run-1776298429499211000-819cfecd649c",
+    "tool": "gs",
+    "module_name": "gs-l4l7",
+    "ip": "123.57.225.114",
+    "protocol": "tcp",
+    "port": 8089,
+    "action_type": "scan",
+    "raw_method": "tcp-syn",
+    "raw_status": "open",
+    "response_summary": "service=unknown  banner=HTTP/1.1 404 Vary: Origin Vary: Access-Control-Reque...",
+    "extra_json": "{\"banner\":\"HTTP/1.1 404 Vary: Origin Vary: Access-Control-Reque...\",\"cpes\":null,\"device\":\"\",\"hostname\":\"\",\"info\":\"\",\"os\":\"\",\"product\":\"\",\"protocol\":\"tcp\",\"service\":\"unknown\",\"version\":\"\"}",
+    "observed_at": "2026-04-16T00:13:58.382836Z"
+  },
+  {
+    "observation_id": "obs-1776298436336913000-9603726bb4d0",
+    "run_id": "run-1776298429499211000-819cfecd649c",
+    "tool": "gs",
+    "module_name": "gs-l4l7",
+    "ip": "123.57.225.114",
+    "protocol": "tcp",
+    "port": 80,
+    "action_type": "scan",
+    "raw_method": "tcp-syn",
+    "raw_status": "open",
+    "response_summary": "service=http product=nginx banner=nginx 1.20.1",
+    "extra_json": "{\"banner\":\"nginx 1.20.1\",\"cpes\":[\"a:igor_sysoev:nginx:1.20.1\"],\"device\":\"\",\"hostname\":\"\",\"info\":\"\",\"os\":\"\",\"product\":\"nginx\",\"protocol\":\"tcp\",\"service\":\"http\",\"version\":\"1.20.1\"}",
+    "observed_at": "2026-04-16T00:13:56.336903Z"
+  },
+  {
+    "observation_id": "obs-1776298436330121000-89baebce1f07",
+    "run_id": "run-1776298429499211000-819cfecd649c",
+    "tool": "gs",
+    "module_name": "gs-l4l7",
+    "ip": "123.57.225.114",
+    "protocol": "tcp",
+    "port": 443,
+    "action_type": "scan",
+    "raw_method": "tcp-syn",
+    "raw_status": "open",
+    "response_summary": "service=ssl",
+    "extra_json": "{\"banner\":\"\",\"cpes\":null,\"device\":\"\",\"hostname\":\"\",\"info\":\"\",\"os\":\"\",\"product\":\"\",\"protocol\":\"tcp\",\"service\":\"ssl\",\"version\":\"\"}",
+    "observed_at": "2026-04-16T00:13:56.330052Z"
+  },
+  {
+    "observation_id": "obs-1776298431491295000-8ed85f929aee",
+    "run_id": "run-1776298429499211000-819cfecd649c",
+    "tool": "gs",
+    "module_name": "gs-l4l7",
+    "ip": "123.57.225.114",
+    "protocol": "tcp",
+    "port": 22,
+    "action_type": "scan",
+    "raw_method": "tcp-ack",
+    "raw_status": "filtered",
+    "extra_json": "{\"banner\":\"\",\"cpes\":null,\"device\":\"\",\"hostname\":\"\",\"info\":\"\",\"os\":\"\",\"product\":\"\",\"protocol\":\"tcp\",\"service\":\"\",\"version\":\"\"}",
+    "observed_at": "2026-04-16T00:13:51.491293Z"
+  },
+  {
+    "observation_id": "obs-1776298431490721000-0187c1ff28b4",
+    "run_id": "run-1776298429499211000-819cfecd649c",
+    "tool": "gs",
+    "module_name": "gs-l4l7",
+    "ip": "123.57.225.114",
+    "protocol": "tcp",
+    "port": 22,
+    "action_type": "scan",
+    "raw_method": "tcp-window",
+    "raw_status": "filtered",
+    "extra_json": "{\"banner\":\"\",\"cpes\":null,\"device\":\"\",\"hostname\":\"\",\"info\":\"\",\"os\":\"\",\"product\":\"\",\"protocol\":\"tcp\",\"service\":\"\",\"version\":\"\"}",
+    "observed_at": "2026-04-16T00:13:51.490719Z"
+  },
+  {
+    "observation_id": "obs-1776298431490134000-6697682c7051",
+    "run_id": "run-1776298429499211000-819cfecd649c",
+    "tool": "gs",
+    "module_name": "gs-l4l7",
+    "ip": "123.57.225.114",
+    "protocol": "tcp",
+    "port": 21,
+    "action_type": "scan",
+    "raw_method": "tcp-ack",
+    "raw_status": "filtered",
+    "extra_json": "{\"banner\":\"\",\"cpes\":null,\"device\":\"\",\"hostname\":\"\",\"info\":\"\",\"os\":\"\",\"product\":\"\",\"protocol\":\"tcp\",\"service\":\"\",\"version\":\"\"}",
+    "observed_at": "2026-04-16T00:13:51.490132Z"
+  },
+  {
+    "observation_id": "obs-1776298431489508000-28f633aa2dd5",
+    "run_id": "run-1776298429499211000-819cfecd649c",
+    "tool": "gs",
+    "module_name": "gs-l4l7",
+    "ip": "123.57.225.114",
+    "protocol": "tcp",
+    "port": 8089,
+    "action_type": "scan",
+    "raw_method": "tcp-ack",
+    "raw_status": "filtered",
+    "extra_json": "{\"banner\":\"\",\"cpes\":null,\"device\":\"\",\"hostname\":\"\",\"info\":\"\",\"os\":\"\",\"product\":\"\",\"protocol\":\"tcp\",\"service\":\"\",\"version\":\"\"}",
+    "observed_at": "2026-04-16T00:13:51.489506Z"
+  },
+  {
+    "observation_id": "obs-1776298431488827000-c368c75ad9c4",
+    "run_id": "run-1776298429499211000-819cfecd649c",
+    "tool": "gs",
+    "module_name": "gs-l4l7",
+    "ip": "123.57.225.114",
+    "protocol": "tcp",
+    "port": 80,
+    "action_type": "scan",
+    "raw_method": "tcp-ack",
+    "raw_status": "filtered",
+    "extra_json": "{\"banner\":\"\",\"cpes\":null,\"device\":\"\",\"hostname\":\"\",\"info\":\"\",\"os\":\"\",\"product\":\"\",\"protocol\":\"tcp\",\"service\":\"\",\"version\":\"\"}",
+    "observed_at": "2026-04-16T00:13:51.488825Z"
+  },
+  {
+    "observation_id": "obs-1776298431488163000-58e186bd54f9",
+    "run_id": "run-1776298429499211000-819cfecd649c",
+    "tool": "gs",
+    "module_name": "gs-l4l7",
+    "ip": "123.57.225.114",
+    "protocol": "tcp",
+    "port": 443,
+    "action_type": "scan",
+    "raw_method": "tcp-ack",
+    "raw_status": "filtered",
+    "extra_json": "{\"banner\":\"\",\"cpes\":null,\"device\":\"\",\"hostname\":\"\",\"info\":\"\",\"os\":\"\",\"product\":\"\",\"protocol\":\"tcp\",\"service\":\"\",\"version\":\"\"}",
+    "observed_at": "2026-04-16T00:13:51.48816Z"
+  },
+  {
+    "observation_id": "obs-1776298431487504000-17f766141b82",
+    "run_id": "run-1776298429499211000-819cfecd649c",
+    "tool": "gs",
+    "module_name": "gs-l4l7",
+    "ip": "123.57.225.114",
+    "protocol": "tcp",
+    "port": 80,
+    "action_type": "scan",
+    "raw_method": "tcp-window",
+    "raw_status": "filtered",
+    "extra_json": "{\"banner\":\"\",\"cpes\":null,\"device\":\"\",\"hostname\":\"\",\"info\":\"\",\"os\":\"\",\"product\":\"\",\"protocol\":\"tcp\",\"service\":\"\",\"version\":\"\"}",
+    "observed_at": "2026-04-16T00:13:51.487501Z"
+  },
+  {
+    "observation_id": "obs-1776298431486777000-9d14576f56f9",
+    "run_id": "run-1776298429499211000-819cfecd649c",
+    "tool": "gs",
+    "module_name": "gs-l4l7",
+    "ip": "123.57.225.114",
+    "protocol": "tcp",
+    "port": 443,
+    "action_type": "scan",
+    "raw_method": "tcp-window",
+    "raw_status": "filtered",
+    "extra_json": "{\"banner\":\"\",\"cpes\":null,\"device\":\"\",\"hostname\":\"\",\"info\":\"\",\"os\":\"\",\"product\":\"\",\"protocol\":\"tcp\",\"service\":\"\",\"version\":\"\"}",
+    "observed_at": "2026-04-16T00:13:51.486773Z"
+  },
+  {
+    "observation_id": "obs-1776298431485804000-653868dae84f",
+    "run_id": "run-1776298429499211000-819cfecd649c",
+    "tool": "gs",
+    "module_name": "gs-l4l7",
+    "ip": "123.57.225.114",
+    "protocol": "tcp",
+    "port": 21,
+    "action_type": "scan",
+    "raw_method": "tcp-window",
+    "raw_status": "filtered",
+    "extra_json": "{\"banner\":\"\",\"cpes\":null,\"device\":\"\",\"hostname\":\"\",\"info\":\"\",\"os\":\"\",\"product\":\"\",\"protocol\":\"tcp\",\"service\":\"\",\"version\":\"\"}",
+    "observed_at": "2026-04-16T00:13:51.485787Z"
+  },
+  {
+    "observation_id": "obs-1776298431483341000-949cd62b5e6a",
+    "run_id": "run-1776298429499211000-819cfecd649c",
+    "tool": "gs",
+    "module_name": "gs-l4l7",
+    "ip": "123.57.225.114",
+    "protocol": "tcp",
+    "port": 8089,
+    "action_type": "scan",
+    "raw_method": "tcp-window",
+    "raw_status": "filtered",
+    "extra_json": "{\"banner\":\"\",\"cpes\":null,\"device\":\"\",\"hostname\":\"\",\"info\":\"\",\"os\":\"\",\"product\":\"\",\"protocol\":\"tcp\",\"service\":\"\",\"version\":\"\"}",
+    "observed_at": "2026-04-16T00:13:51.483313Z"
+  },
+  {
+    "observation_id": "obs-1776298431060656000-695d465d31dc",
+    "run_id": "run-1776298429499211000-819cfecd649c",
+    "tool": "gs",
+    "module_name": "gs-l4l7",
+    "ip": "123.57.225.114",
+    "protocol": "tcp",
+    "port": 22,
+    "action_type": "scan",
+    "raw_method": "tcp-syn",
+    "raw_status": "open",
+    "response_summary": "service=ssh product=OpenSSH banner=OpenSSH 8.7 (protocol 2.0)",
+    "extra_json": "{\"banner\":\"OpenSSH 8.7 (protocol 2.0)\",\"cpes\":[\"a:openbsd:openssh:8.7\"],\"device\":\"\",\"hostname\":\"\",\"info\":\"protocol 2.0\",\"os\":\"\",\"product\":\"OpenSSH\",\"protocol\":\"tcp\",\"service\":\"ssh\",\"version\":\"8.7\"}",
+    "observed_at": "2026-04-16T00:13:51.06064Z"
+  },
+  {
+    "observation_id": "obs-1776298430225646000-fe142c928407",
+    "run_id": "run-1776298429499211000-819cfecd649c",
+    "tool": "gs",
+    "module_name": "gs-l4l7",
+    "ip": "123.57.225.114",
+    "protocol": "tcp",
+    "port": 8089,
+    "action_type": "scan",
+    "raw_method": "tcp-syn",
+    "raw_status": "open",
+    "extra_json": "{\"banner\":\"\",\"cpes\":null,\"device\":\"\",\"hostname\":\"\",\"info\":\"\",\"os\":\"\",\"product\":\"\",\"protocol\":\"tcp\",\"service\":\"\",\"version\":\"\"}",
+    "observed_at": "2026-04-16T00:13:50.22564Z"
+  },
+  {
+    "observation_id": "obs-1776298430224102000-bdb0921218d3",
+    "run_id": "run-1776298429499211000-819cfecd649c",
+    "tool": "gs",
+    "module_name": "gs-l4l7",
+    "ip": "123.57.225.114",
+    "protocol": "tcp",
+    "port": 22,
+    "action_type": "scan",
+    "raw_method": "tcp-syn",
+    "raw_status": "open",
+    "extra_json": "{\"banner\":\"\",\"cpes\":null,\"device\":\"\",\"hostname\":\"\",\"info\":\"\",\"os\":\"\",\"product\":\"\",\"protocol\":\"tcp\",\"service\":\"\",\"version\":\"\"}",
+    "observed_at": "2026-04-16T00:13:50.224096Z"
+  },
+  {
+    "observation_id": "obs-1776298430222250000-381163183264",
+    "run_id": "run-1776298429499211000-819cfecd649c",
+    "tool": "gs",
+    "module_name": "gs-l4l7",
+    "ip": "123.57.225.114",
+    "protocol": "tcp",
+    "port": 80,
+    "action_type": "scan",
+    "raw_method": "tcp-syn",
+    "raw_status": "open",
+    "extra_json": "{\"banner\":\"\",\"cpes\":null,\"device\":\"\",\"hostname\":\"\",\"info\":\"\",\"os\":\"\",\"product\":\"\",\"protocol\":\"tcp\",\"service\":\"\",\"version\":\"\"}",
+    "observed_at": "2026-04-16T00:13:50.222243Z"
+  },
+  {
+    "observation_id": "obs-1776298430219638000-2567acaf7410",
+    "run_id": "run-1776298429499211000-819cfecd649c",
+    "tool": "gs",
+    "module_name": "gs-l4l7",
+    "ip": "123.57.225.114",
+    "protocol": "tcp",
+    "port": 443,
+    "action_type": "scan",
+    "raw_method": "tcp-syn",
+    "raw_status": "open",
+    "extra_json": "{\"banner\":\"\",\"cpes\":null,\"device\":\"\",\"hostname\":\"\",\"info\":\"\",\"os\":\"\",\"product\":\"\",\"protocol\":\"tcp\",\"service\":\"\",\"version\":\"\"}",
+    "observed_at": "2026-04-16T00:13:50.219617Z"
+  },
+  {
+    "observation_id": "obs-1776298430187468000-b3c2268ce190",
+    "run_id": "run-1776298429499211000-819cfecd649c",
+    "tool": "gs",
+    "module_name": "gs-l4l7",
+    "ip": "123.57.225.114",
+    "protocol": "tcp",
+    "port": 21,
+    "action_type": "scan",
+    "raw_method": "tcp-syn",
+    "raw_status": "open",
+    "extra_json": "{\"banner\":\"\",\"cpes\":null,\"device\":\"\",\"hostname\":\"\",\"info\":\"\",\"os\":\"\",\"product\":\"\",\"protocol\":\"tcp\",\"service\":\"\",\"version\":\"\"}",
+    "observed_at": "2026-04-16T00:13:50.187449Z"
+  }
+]
+(base) liningyu@LiNingyudeMacBook-Air manual-test % sudo ../goscan uam report --db $DB --ip $TARGET
+UAM Report for 123.57.225.114
+Generated at: 2026-04-16T00:20:46Z
+Filter: ip=123.57.225.114
+
+Host Status: reachable (confidence=96, verification=none, source=gs, last_seen=2026-04-16T00:15:09.374533Z)
+
+Recent Runs:
+  run-1776298508707677000-f66a58a4015c  [gs/gs-l4l7]  started=2026-04-16T00:15:08.707663Z  finished=2026-04-16T00:15:12.142617Z
+  run-1776298429499211000-819cfecd649c  [gs/gs-l4l7]  started=2026-04-16T00:13:49.499195Z  finished=2026-04-16T00:14:05.70569Z
+
+PORT      STATE         SERVICE        VERSION/INFO                    SOURCE   VERIFY
+21/tcp    open          -              -                              gs       none
+22/tcp    open          ssh            OpenSSH 8.7 (protocol 2.0)     gs       none
+53/udp    filtered      -              -                              gs       none
+80/tcp    open          http           nginx 1.20.1                   gs       none
+123/udp   filtered      -              -                              gs       none
+161/udp   filtered      -              -                              gs       none
+443/tcp   open          -              -                              gs       none
+8089/tcp  open          -              HTTP/1.1 404 Vary: Origin Vary: Access-Control-Reque... gs       none
+
+Host Facts:
+  2026-04-16T00:15:09.374533Z  tcp-syn-ping -> alive  [run=run-1776298508707677000-f66a58a4015c]
+  2026-04-16T00:15:09.369715Z  icmp-echo -> alive  [run=run-1776298508707677000-f66a58a4015c]
+  2026-04-16T00:13:50.184597Z  icmp-echo -> alive  [run=run-1776298429499211000-819cfecd649c]
+  2026-04-16T00:13:50.180367Z  tcp-syn-ping -> alive  [run=run-1776298429499211000-819cfecd649c]
+
+123/udp Facts:
+  2026-04-16T00:15:11.133568Z  udp -> filtered  [run=run-1776298508707677000-f66a58a4015c]
+
+161/udp Facts:
+  2026-04-16T00:15:11.137069Z  udp -> filtered  [run=run-1776298508707677000-f66a58a4015c]
+
+21/tcp Facts:
+  2026-04-16T00:13:51.490132Z  tcp-ack -> filtered  [run=run-1776298429499211000-819cfecd649c]
+  2026-04-16T00:13:51.485787Z  tcp-window -> filtered  [run=run-1776298429499211000-819cfecd649c]
+  2026-04-16T00:13:50.187449Z  tcp-syn -> open  [run=run-1776298429499211000-819cfecd649c]
+
+22/tcp Facts:
+  2026-04-16T00:13:51.491293Z  tcp-ack -> filtered  [run=run-1776298429499211000-819cfecd649c]
+  2026-04-16T00:13:51.490719Z  tcp-window -> filtered  [run=run-1776298429499211000-819cfecd649c]
+  2026-04-16T00:13:51.06064Z  tcp-syn -> open  [run=run-1776298429499211000-819cfecd649c]  service=ssh product=OpenSSH banner=OpenSSH 8.7 (protocol 2.0)
+  2026-04-16T00:13:50.224096Z  tcp-syn -> open  [run=run-1776298429499211000-819cfecd649c]
+
+443/tcp Facts:
+  2026-04-16T00:13:56.330052Z  tcp-syn -> open  [run=run-1776298429499211000-819cfecd649c]  service=ssl
+  2026-04-16T00:13:51.48816Z  tcp-ack -> filtered  [run=run-1776298429499211000-819cfecd649c]
+  2026-04-16T00:13:51.486773Z  tcp-window -> filtered  [run=run-1776298429499211000-819cfecd649c]
+  2026-04-16T00:13:50.219617Z  tcp-syn -> open  [run=run-1776298429499211000-819cfecd649c]
+
+53/udp Facts:
+  2026-04-16T00:15:11.135832Z  udp -> filtered  [run=run-1776298508707677000-f66a58a4015c]
+
+80/tcp Facts:
+  2026-04-16T00:13:56.336903Z  tcp-syn -> open  [run=run-1776298429499211000-819cfecd649c]  service=http product=nginx banner=nginx 1.20.1
+  2026-04-16T00:13:51.488825Z  tcp-ack -> filtered  [run=run-1776298429499211000-819cfecd649c]
+  2026-04-16T00:13:51.487501Z  tcp-window -> filtered  [run=run-1776298429499211000-819cfecd649c]
+  2026-04-16T00:13:50.222243Z  tcp-syn -> open  [run=run-1776298429499211000-819cfecd649c]
+
+8089/tcp Facts:
+  2026-04-16T00:13:58.382836Z  tcp-syn -> open  [run=run-1776298429499211000-819cfecd649c]  service=unknown  banner=HTTP/1.1 404 Vary: Origin Vary: Access-Control-Reque...
+  2026-04-16T00:13:51.489506Z  tcp-ack -> filtered  [run=run-1776298429499211000-819cfecd649c]
+  2026-04-16T00:13:51.483313Z  tcp-window -> filtered  [run=run-1776298429499211000-819cfecd649c]
+  2026-04-16T00:13:50.22564Z  tcp-syn -> open  [run=run-1776298429499211000-819cfecd649c]
+(base) liningyu@LiNingyudeMacBook-Air manual-test % sudo ../goscan gping candidates --uam-db $DB --ip $TARGET --limit 20
+gping candidates
+
+Use --pick-index N or --uam-endpoint <id> to select one candidate.
+
+1. host:123.57.225.114:udp:161  123.57.225.114:161/udp  service=-  verify=none
+   source=gs  last_seen=2026-04-16T00:15:11.137069Z
+2. host:123.57.225.114:udp:53  123.57.225.114:53/udp  service=-  verify=none
+   source=gs  last_seen=2026-04-16T00:15:11.135832Z  templates=dns/basic-confirm,uam/dns-enrich
+3. host:123.57.225.114:udp:123  123.57.225.114:123/udp  service=-  verify=none
+   source=gs  last_seen=2026-04-16T00:15:11.133568Z
+4. host:123.57.225.114:tcp:8089  123.57.225.114:8089/tcp  service=-  verify=none
+   source=gs  last_seen=2026-04-16T00:13:58.382836Z  banner=HTTP/1.1 404 Vary: Origin Vary: Access-Control-Reque...  templates=dns/basic-confirm,ftp/basic-confirm,mysql/basic-confirm,raw/basic-syn-check,redis/basic-confirm,smtp/basic-confirm,ssh/basic-confirm,stack/basic-banner-read,uam/dns-enrich,uam/ftp-enrich,uam/mysql-enrich,uam/redis-enrich,uam/smtp-enrich,uam/ssh-enrich,http/reverse-proxy-confirm
+5. host:123.57.225.114:tcp:80  123.57.225.114:80/tcp  service=http  verify=none
+   product=nginx  version=1.20.1  source=gs  last_seen=2026-04-16T00:13:56.336903Z  banner=nginx 1.20.1  templates=http/reverse-proxy-confirm,raw/basic-syn-check,stack/basic-banner-read
+6. host:123.57.225.114:tcp:22  123.57.225.114:22/tcp  service=ssh  verify=none
+   product=OpenSSH  version=8.7  source=gs  last_seen=2026-04-16T00:13:51.06064Z  banner=OpenSSH 8.7 (protocol 2.0)  templates=raw/basic-syn-check,ssh/basic-confirm,stack/basic-banner-read,uam/ssh-enrich,http/reverse-proxy-confirm
+7. host:123.57.225.114:tcp:443  123.57.225.114:443/tcp  service=-  verify=none
+   source=gs  last_seen=2026-04-16T00:13:50.219617Z  templates=dns/basic-confirm,ftp/basic-confirm,http/reverse-proxy-confirm,mysql/basic-confirm,raw/basic-syn-check,redis/basic-confirm,smtp/basic-confirm,ssh/basic-confirm,stack/basic-banner-read,uam/dns-enrich,uam/ftp-enrich,uam/https-enrich,uam/mysql-enrich,uam/redis-enrich,uam/smtp-enrich,uam/ssh-enrich
+8. host:123.57.225.114:tcp:21  123.57.225.114:21/tcp  service=-  verify=none
+   source=gs  last_seen=2026-04-16T00:13:50.187449Z  templates=dns/basic-confirm,ftp/basic-confirm,mysql/basic-confirm,raw/basic-syn-check,redis/basic-confirm,smtp/basic-confirm,ssh/basic-confirm,stack/basic-banner-read,uam/dns-enrich,uam/ftp-enrich,uam/mysql-enrich,uam/redis-enrich,uam/smtp-enrich,uam/ssh-enrich,http/reverse-proxy-confirm
+(base) liningyu@LiNingyudeMacBook-Air manual-test % sudo ../goscan gping preview \
+  --uam-db $DB \
+  --ip $TARGET \
+  --port 80 \
+  --template http/reverse-proxy-confirm \
+  --host $TARGET
+gping preview
+
+target: 123.57.225.114:80/tcp  source=literal
+uam endpoint: host:123.57.225.114:tcp:80
+current service: http
+current product: nginx
+current version: 1.20.1
+current banner: nginx 1.20.1
+verification state: none
+url: http://123.57.225.114/
+suggested templates: http/reverse-proxy-confirm, raw/basic-syn-check, stack/basic-banner-read
+uam writeback: enabled
+template: http/reverse-proxy-confirm
+template suggest:
+  verification_state=pending
+
+actions:
+  1. app/http-head
+     id=head_root
+     adapter=http
+     url=http://123.57.225.114/
+     host=123.57.225.114
+     params=map[host_header:123.57.225.114 insecure_skip_verify:true sni: url:http://123.57.225.114/]
+     timeout=5s
+     insecure_skip_verify=true
+  2. app/http-get
+     id=get_root
+     adapter=http
+     url=http://123.57.225.114/
+     host=123.57.225.114
+     params=map[host_header:123.57.225.114 insecure_skip_verify:true sni: url:http://123.57.225.114/]
+     timeout=5s
+     insecure_skip_verify=true
+(base) liningyu@LiNingyudeMacBook-Air manual-test % sudo ../goscan gping \
+  --uam-db $DB \
+  --ip $TARGET \
+  --port 80 \
+  --template http/reverse-proxy-confirm \
+  --host $TARGET \
+  --assert pending
+gping target 123.57.225.114:80/tcp  source=literal
+template: http/reverse-proxy-confirm
+uam run: run-1776298893750206000-7913f5304353
+recommendations:
+  verification_state=pending  (head_root.raw_status != "error" && get_root.fields.server != "")
+
+1. app/http-head -> 200 OK  [step=head_root] (101.4 ms)
+   request: HEAD / host=123.57.225.114
+   response: status=200 OK server=nginx/1.20.1   length=3808
+   claims: network.port_state=open, network.reachability=reachable, service.name=http, http.server=nginx/1.20.1, service.banner=nginx/1.20.1, service.product=nginx, service.version=1.20.1, http.status_code=200
+
+2. app/http-get -> 200 OK  [step=get_root] (67.7 ms)
+   request: GET / host=123.57.225.114
+   response: status=200 OK server=nginx/1.20.1  title=Lny的测试站点 length=3808
+   claims: network.port_state=open, network.reachability=reachable, service.name=http, http.server=nginx/1.20.1, service.banner=nginx/1.20.1, service.product=nginx, service.version=1.20.1, http.status_code=200, http.title=Lny的测试站点, user.verification_state=pending
+(base) liningyu@LiNingyudeMacBook-Air manual-test % sudo ../goscan gping preview \
+  --uam-db $DB \
+  --ip $TARGET \
+  --port 443 \
+  --template uam/https-enrich \
+  --host $TARGET \
+  --sni $TARGET
+gping preview
+
+target: 123.57.225.114:443/tcp  source=literal
+uam endpoint: host:123.57.225.114:tcp:443
+verification state: none
+url: https://123.57.225.114/
+suggested templates: dns/basic-confirm, ftp/basic-confirm, http/reverse-proxy-confirm, mysql/basic-confirm, raw/basic-syn-check, redis/basic-confirm, smtp/basic-confirm, ssh/basic-confirm, stack/basic-banner-read, uam/dns-enrich, uam/ftp-enrich, uam/https-enrich, uam/mysql-enrich, uam/redis-enrich, uam/smtp-enrich, uam/ssh-enrich
+uam writeback: enabled
+template: uam/https-enrich
+template suggest:
+  verification_state=pending
+
+actions:
+  1. stack/tcp-connect
+     id=connect
+     host=123.57.225.114
+     sni=123.57.225.114
+     timeout=5s
+  2. stack/tls-handshake
+     id=tls
+     host=123.57.225.114
+     sni=123.57.225.114
+     params=map[insecure_skip_verify:true sni:123.57.225.114]
+     timeout=5s
+     insecure_skip_verify=true
+  3. app/http-head
+     id=head_root
+     adapter=http
+     url=https://123.57.225.114/
+     host=123.57.225.114
+     sni=123.57.225.114
+     params=map[host_header:123.57.225.114 insecure_skip_verify:true sni:123.57.225.114 url:https://123.57.225.114/]
+     timeout=5s
+     insecure_skip_verify=true
+  4. app/http-get
+     id=get_health
+     adapter=http
+     url=https://123.57.225.114/health
+     host=123.57.225.114
+     sni=123.57.225.114
+     params=map[host_header:123.57.225.114 insecure_skip_verify:true sni:123.57.225.114 url:https://123.57.225.114/health]
+     timeout=5s
+     insecure_skip_verify=true
+(base) liningyu@LiNingyudeMacBook-Air manual-test % sudo ../goscan gping \
+  --uam-db $DB \
+  --ip $TARGET \
+  --port 443 \
+  --template uam/https-enrich \
+  --host $TARGET \
+  --sni $TARGET \
+  --assert confirmed
+gping target 123.57.225.114:443/tcp  source=literal
+template: uam/https-enrich
+uam run: run-1776298911964048000-31a4ab71de86
+recommendations:
+  verification_state=pending  (tls.raw_status == "success" && head_root.raw_status != "error")
+
+1. stack/tcp-connect -> open  [step=connect] (38.9 ms)
+   request: dial=tcp 123.57.225.114:443
+   response: tcp connection established
+   claims: network.port_state=open, network.reachability=reachable
+
+2. stack/tls-handshake -> success  [step=tls] (90.0 ms)
+   request: tls-handshake=123.57.225.114:443 sni=123.57.225.114
+   response: version=TLS1.3  subject=CN=liningyu.top
+   claims: network.port_state=open, network.reachability=reachable, service.name=https, tls.subject=CN=liningyu.top, tls.issuer=CN=R10,O=Let's Encrypt,C=US, tls.san=["liningyu.top"]
+
+3. app/http-head -> 200 OK  [step=head_root] (114.7 ms)
+   request: HEAD / host=123.57.225.114
+   response: status=200 OK server=nginx/1.20.1   length=3808
+   claims: network.port_state=open, network.reachability=reachable, service.name=https, http.server=nginx/1.20.1, service.banner=nginx/1.20.1, service.product=nginx, service.version=1.20.1, http.status_code=200
+
+4. app/http-get -> 404 Not Found  [step=get_health] (131.0 ms)
+   request: GET /health host=123.57.225.114
+   response: status=404 Not Found server=nginx/1.20.1  title=The page is not found length=3332
+   claims: network.port_state=open, network.reachability=reachable, service.name=https, http.server=nginx/1.20.1, service.banner=nginx/1.20.1, service.product=nginx, service.version=1.20.1, http.status_code=404, http.title=The page is not found, user.verification_state=confirmed
+(base) liningyu@LiNingyudeMacBook-Air manual-test % sudo ../goscan gping preview \
+  --uam-db $DB \
+  --ip $TARGET \
+  --port 22 \
+  --template uam/ssh-enrich
+gping preview
+
+target: 123.57.225.114:22/tcp  source=literal
+uam endpoint: host:123.57.225.114:tcp:22
+current service: ssh
+current product: OpenSSH
+current version: 8.7
+current banner: OpenSSH 8.7 (protocol 2.0)
+verification state: none
+url: http://123.57.225.114:22/
+suggested templates: raw/basic-syn-check, ssh/basic-confirm, stack/basic-banner-read, uam/ssh-enrich, http/reverse-proxy-confirm
+uam writeback: enabled
+template: uam/ssh-enrich
+template suggest:
+  verification_state=pending
+
+actions:
+  1. app/ssh-banner
+     id=banner
+     adapter=ssh
+     host=123.57.225.114
+     timeout=5s
+  2. app/ssh-kexinit
+     id=kexinit
+     adapter=ssh
+     host=123.57.225.114
+     when=banner.raw_status == "success"
+     continue_on_error=true
+     timeout=5s
+  3. app/ssh-hostkey
+     id=hostkey
+     adapter=ssh
+     host=123.57.225.114
+     when=banner.raw_status == "success"
+     continue_on_error=true
+     timeout=5s
+(base) liningyu@LiNingyudeMacBook-Air manual-test % sudo ../goscan gping \
+  --uam-db $DB \
+  --ip $TARGET \
+  --port 22 \
+  --template uam/ssh-enrich \
+  --assert confirmed
+gping target 123.57.225.114:22/tcp  source=literal
+template: uam/ssh-enrich
+uam run: run-1776298935454191000-5076a851e2d0
+recommendations:
+  verification_state=pending  (banner.raw_status == "success")
+
+1. app/ssh-banner -> success  [step=banner] (42.8 ms)
+   request: connect read-identification
+   response: SSH-2.0-OpenSSH_8.7
+   claims: network.port_state=open, network.reachability=reachable, service.name=ssh, service.banner=SSH-2.0-OpenSSH_8.7, ssh.protocol_version=2.0, ssh.software_version=OpenSSH_8.7, service.product=OpenSSH, service.version=8.7
+
+2. app/ssh-kexinit -> success  [step=kexinit] (82.1 ms)
+   request: send-identification read-kexinit
+   response: kex=curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp256,ecdh-sha2-nist... hostkey=rsa-sha2-512,rsa-sha2-256,ecdsa-sha2-nistp256,ssh-ed25519
+   claims: network.port_state=open, network.reachability=reachable, service.name=ssh, service.banner=SSH-2.0-OpenSSH_8.7, ssh.protocol_version=2.0, ssh.software_version=OpenSSH_8.7, service.product=OpenSSH, service.version=8.7, ssh.kex_algorithms=["curve25519-sha256","curve25519-sha256@libssh.org","ecdh-sha2-nistp256","ecdh-sha2-nistp384","ecdh-sha2-nistp521","diffie-hellman-group-exchange-sha256","diffie-hellman-group14-sha256","diffie-hellman-group16-sha512","diffie-hellman-group18-sha512","kex-strict-s-v00@openssh.com"], ssh.hostkey_algorithms=["rsa-sha2-512","rsa-sha2-256","ecdsa-sha2-nistp256","ssh-ed25519"], ssh.ciphers=["aes256-gcm@openssh.com","chacha20-poly1305@openssh.com","aes256-ctr","aes128-gcm@openssh.com","aes128-ctr"]
+
+3. app/ssh-hostkey -> success  [step=hostkey] (131.2 ms)
+   request: send-identification send-client-kexinit send-ecdh-init
+   response: hostkey=ssh-ed25519 fingerprint=SHA256:fz/LpUN0hbi4cFxPuaFeaSp6emavs1OYAQxx6TwPM6A
+   claims: network.port_state=open, network.reachability=reachable, service.name=ssh, service.banner=SSH-2.0-OpenSSH_8.7, ssh.protocol_version=2.0, ssh.software_version=OpenSSH_8.7, service.product=OpenSSH, service.version=8.7, ssh.hostkey_algorithms=["rsa-sha2-512","rsa-sha2-256","ecdsa-sha2-nistp256","ssh-ed25519"], ssh.hostkey_type=ssh-ed25519, ssh.hostkey_fingerprint=SHA256:fz/LpUN0hbi4cFxPuaFeaSp6emavs1OYAQxx6TwPM6A, user.verification_state=confirmed
+(base) liningyu@LiNingyudeMacBook-Air manual-test % sudo ../goscan gping preview \
+  --uam-db $DB \
+  --ip $TARGET \
+  --port 21 \
+  --template stack/basic-banner-read
+gping preview
+
+target: 123.57.225.114:21/tcp  source=literal
+uam endpoint: host:123.57.225.114:tcp:21
+verification state: none
+url: http://123.57.225.114:21/
+suggested templates: dns/basic-confirm, ftp/basic-confirm, mysql/basic-confirm, raw/basic-syn-check, redis/basic-confirm, smtp/basic-confirm, ssh/basic-confirm, stack/basic-banner-read, uam/dns-enrich, uam/ftp-enrich, uam/mysql-enrich, uam/redis-enrich, uam/smtp-enrich, uam/ssh-enrich, http/reverse-proxy-confirm
+uam writeback: enabled
+template: stack/basic-banner-read
+
+actions:
+  1. stack/banner-read
+     id=banner
+     read_bytes=512
+     host=123.57.225.114
+     params=map[read_bytes:512]
+     timeout=5s
+(base) liningyu@LiNingyudeMacBook-Air manual-test % sudo ../goscan gping \
+  --uam-db $DB \
+  --ip $TARGET \
+  --port 21 \
+  --template stack/basic-banner-read \
+  --assert pending
+gping target 123.57.225.114:21/tcp  source=literal
+template: stack/basic-banner-read
+uam run: run-1776298957928188000-ff813a681a30
+
+1. stack/banner-read -> timeout  [step=banner] (5007.1 ms)
+   request: banner-read=123.57.225.114:21 bytes=512
+   response: connected but no banner received before timeout
+   claims: network.port_state=open, network.reachability=reachable, user.verification_state=pending
+(base) liningyu@LiNingyudeMacBook-Air manual-test % sudo ../goscan gping preview \
+  --uam-db $DB \
+  --ip $TARGET \
+  --port 21 \
+  --template uam/ftp-enrich
+gping preview
+
+target: 123.57.225.114:21/tcp  source=literal
+uam endpoint: host:123.57.225.114:tcp:21
+verification state: pending
+url: http://123.57.225.114:21/
+suggested templates: dns/basic-confirm, ftp/basic-confirm, mysql/basic-confirm, raw/basic-syn-check, redis/basic-confirm, smtp/basic-confirm, ssh/basic-confirm, stack/basic-banner-read, uam/dns-enrich, uam/ftp-enrich, uam/mysql-enrich, uam/redis-enrich, uam/smtp-enrich, uam/ssh-enrich, http/reverse-proxy-confirm
+uam writeback: enabled
+template: uam/ftp-enrich
+template suggest:
+  verification_state=pending
+
+actions:
+  1. app/ftp-banner
+     id=banner
+     adapter=ftp
+     host=123.57.225.114
+     timeout=5s
+  2. app/ftp-feat
+     id=feat
+     adapter=ftp
+     host=123.57.225.114
+     when=banner.raw_status == "220"
+     continue_on_error=true
+     timeout=5s
+  3. app/ftp-auth-tls
+     id=auth_tls
+     adapter=ftp
+     host=123.57.225.114
+     when=feat.fields.auth_tls_advertised == "true"
+     continue_on_error=true
+     timeout=5s
+(base) liningyu@LiNingyudeMacBook-Air manual-test % sudo ../goscan gping \
+  --uam-db $DB \
+  --ip $TARGET \
+  --port 21 \
+  --template uam/ftp-enrich \
+  --assert confirmed
+gping target 123.57.225.114:21/tcp  source=literal
+template: uam/ftp-enrich
+uam run: run-1776298978456541000-f9ab6349d77a
+
+1. app/ftp-banner -> error  [step=banner]
+   request: connect read-banner
+   error: read tcp 172.20.10.2:55418->123.57.225.114:21: i/o timeout
+   claims: user.verification_state=confirmed
+
+2. app/ftp-feat -> skipped  [step=feat]
+   response: condition not met: banner.raw_status == "220"
+
+3. app/ftp-auth-tls -> skipped  [step=auth_tls]
+   response: condition not met: feat.fields.auth_tls_advertised == "true"
+(base) liningyu@LiNingyudeMacBook-Air manual-test % sudo ../goscan gping preview \
+  --uam-db $DB \
+  --ip $TARGET \
+  --port 8089 \
+  --template raw/basic-syn-check
+gping preview
+
+target: 123.57.225.114:8089/tcp  source=literal
+uam endpoint: host:123.57.225.114:tcp:8089
+current banner: HTTP/1.1 404 Vary: Origin Vary: Access-Control-Reque...
+verification state: none
+url: http://123.57.225.114:8089/
+suggested templates: dns/basic-confirm, ftp/basic-confirm, mysql/basic-confirm, raw/basic-syn-check, redis/basic-confirm, smtp/basic-confirm, ssh/basic-confirm, stack/basic-banner-read, uam/dns-enrich, uam/ftp-enrich, uam/mysql-enrich, uam/redis-enrich, uam/smtp-enrich, uam/ssh-enrich, http/reverse-proxy-confirm
+uam writeback: enabled
+template: raw/basic-syn-check
+
+actions:
+  1. raw/tcp-syn
+     id=syn
+     host=123.57.225.114
+     timeout=5s
+(base) liningyu@LiNingyudeMacBook-Air manual-test % sudo ../goscan gping \
+  --uam-db $DB \
+  --ip $TARGET \
+  --port 8089 \
+  --template raw/basic-syn-check \
+  --assert pending
+gping target 123.57.225.114:8089/tcp  source=literal
+template: raw/basic-syn-check
+uam run: run-1776298989817427000-68c2a01ff124
+
+1. raw/tcp-syn -> open  [step=syn] (250.7 ms)
+   request: tcp 123.57.225.114:8089 src_port=57096 flags=syn ttl=64 tos=0 seq=2064077003 window=1024
+   response: flags=syn,ack
+   claims: network.port_state=open, network.reachability=reachable, user.verification_state=pending
+(base) liningyu@LiNingyudeMacBook-Air manual-test % sudo ../goscan gping preview \
+  --uam-db $DB \
+  --ip $TARGET \
+  --port 8089 \
+  --template stack/basic-banner-read
+gping preview
+
+target: 123.57.225.114:8089/tcp  source=literal
+uam endpoint: host:123.57.225.114:tcp:8089
+current banner: HTTP/1.1 404 Vary: Origin Vary: Access-Control-Reque...
+verification state: pending
+url: http://123.57.225.114:8089/
+suggested templates: dns/basic-confirm, ftp/basic-confirm, mysql/basic-confirm, raw/basic-syn-check, redis/basic-confirm, smtp/basic-confirm, ssh/basic-confirm, stack/basic-banner-read, uam/dns-enrich, uam/ftp-enrich, uam/mysql-enrich, uam/redis-enrich, uam/smtp-enrich, uam/ssh-enrich, http/reverse-proxy-confirm
+uam writeback: enabled
+template: stack/basic-banner-read
+
+actions:
+  1. stack/banner-read
+     id=banner
+     read_bytes=512
+     host=123.57.225.114
+     params=map[read_bytes:512]
+     timeout=5s
+(base) liningyu@LiNingyudeMacBook-Air manual-test % sudo ../goscan gping \
+  --uam-db $DB \
+  --ip $TARGET \
+  --port 8089 \
+  --template stack/basic-banner-read \
+  --assert pending
+gping target 123.57.225.114:8089/tcp  source=literal
+template: stack/basic-banner-read
+uam run: run-1776299006825757000-3daebee2538e
+
+1. stack/banner-read -> timeout  [step=banner] (5041.1 ms)
+   request: banner-read=123.57.225.114:8089 bytes=512
+   response: connected but no banner received before timeout
+   claims: network.port_state=open, network.reachability=reachable, user.verification_state=pending
+(base) liningyu@LiNingyudeMacBook-Air manual-test % sudo ../goscan gping \
+  --uam-db $DB \
+  --ip $TARGET \
+  --port 8089 \
+  --route app \
+  --method http-head \
+  --url http://$TARGET:8089/ \
+  --host $TARGET \
+  --assert pending
+gping target 123.57.225.114:8089/tcp  source=url
+uam run: run-1776299015370278000-919b231e483f
+
+1. app/http-head -> 404 Not Found  [step=step1] (97.3 ms)
+   request: HEAD / host=123.57.225.114
+   response: status=404 Not Found
+   claims: network.port_state=open, network.reachability=reachable, service.name=http, http.status_code=404, user.verification_state=pending
+(base) liningyu@LiNingyudeMacBook-Air manual-test % sudo ../goscan gping \
+  --uam-db $DB \
+  --ip $TARGET \
+  --port 8089 \
+  --route app \
+  --method http-get \
+  --url http://$TARGET:8089/ \
+  --host $TARGET \
+  --assert pending
+gping target 123.57.225.114:8089/tcp  source=url
+uam run: run-1776299022447355000-5f1363b8b6c3
+
+1. app/http-get -> 404 Not Found  [step=step1] (73.8 ms)
+   request: GET / host=123.57.225.114
+   response: status=404 Not Found
+   claims: network.port_state=open, network.reachability=reachable, service.name=http, http.status_code=404, user.verification_state=pending
+(base) liningyu@LiNingyudeMacBook-Air manual-test % sudo ../goscan gping \
+  --uam-db $DB \
+  --ip $TARGET \
+  --port 8089 \
+  --route stack \
+  --method tls-handshake \
+  --host $TARGET \
+  --sni $TARGET \
+  --insecure \
+  --assert pending
+gping target 123.57.225.114:8089/tcp  source=literal
+uam run: run-1776299040011434000-553177d9cdde
+
+1. stack/tls-handshake -> error  [step=step1] (71.2 ms)
+   request: tls-handshake=123.57.225.114:8089 sni=123.57.225.114
+   error: tls: first record does not look like a TLS handshake
+   claims: network.port_state=open, network.reachability=reachable, service.name=https, user.verification_state=pending
+(base) liningyu@LiNingyudeMacBook-Air manual-test % sudo ../goscan gping \
+  --uam-db $DB \
+  --ip $TARGET \
+  --port 8089 \
+  --route app \
+  --method http-head \
+  --url https://$TARGET:8089/ \
+  --host $TARGET \
+  --sni $TARGET \
+  --insecure \
+  --assert pending
+gping target 123.57.225.114:8089/tcp  source=url
+uam run: run-1776299044881885000-af85a5d42d4c
+
+1. app/http-head -> error  [step=step1]
+   request: HEAD / host=123.57.225.114
+   error: Head "https://123.57.225.114:8089/": http: server gave HTTP response to HTTPS client
+   claims: network.port_state=open, network.reachability=reachable, service.name=https, user.verification_state=pending
+(base) liningyu@LiNingyudeMacBook-Air manual-test % sudo ../goscan gping \
+  --uam-db $DB \
+  --ip $TARGET \
+  --port 8089 \
+  --route app \
+  --method http-get \
+  --url http://$TARGET:8089/ \
+  --host $TARGET \
+  --override-service http \
+  --assert overridden
+gping target 123.57.225.114:8089/tcp  source=url
+uam run: run-1776299060378379000-b4e0a6133880
+
+1. app/http-get -> 404 Not Found  [step=step1] (109.1 ms)
+   request: GET / host=123.57.225.114
+   response: status=404 Not Found
+   claims: network.port_state=open, network.reachability=reachable, service.name=http, http.status_code=404, user.verification_state=overridden, user.override_service_name=http
+(base) liningyu@LiNingyudeMacBook-Air manual-test % >....
+  --ip $TARGET \
+  --port 8089 \
+  --route app \
+  --method http-get \
+  --url https://$TARGET:8089/ \
+  --host $TARGET \
+  --sni $TARGET \
+  --insecure \
+  --override-service https \
+  --assert overridden
+gping target 123.57.225.114:8089/tcp  source=url
+uam run: run-1776299064272817000-7953b67d6ec7
+
+1. app/http-get -> error  [step=step1]
+   request: GET / host=123.57.225.114
+   error: Get "https://123.57.225.114:8089/": http: server gave HTTP response to HTTPS client
+   claims: network.port_state=open, network.reachability=reachable, service.name=https, user.verification_state=overridden, user.override_service_name=https
+(base) liningyu@LiNingyudeMacBook-Air manual-test % sudo ../goscan gping history \
+  --uam-db $DB \
+  --ip $TARGET \
+  --port 8089 \
+  --limit 20 \
+  --verbose
+gping history for 123.57.225.114 8089/tcp
+Generated at: 2026-04-16T00:24:33Z
+
+Current Endpoint: state=open service=https verify=overridden
+Details: banner=HTTP/1.1 404 Vary: Origin Vary: Access-Control-Reque...
+
+Recent gping runs:
+  run-1776299064272817000-7953b67d6ec7  started=2026-04-16T00:24:24.272815Z  finished=2026-04-16T00:24:24.274754Z
+  run-1776299060378379000-b4e0a6133880  started=2026-04-16T00:24:20.378374Z  finished=2026-04-16T00:24:20.381275Z
+  run-1776299044881885000-af85a5d42d4c  started=2026-04-16T00:24:04.881883Z  finished=2026-04-16T00:24:04.883236Z
+  run-1776299040011434000-553177d9cdde  started=2026-04-16T00:24:00.011432Z  finished=2026-04-16T00:24:00.015215Z
+  run-1776299022447355000-5f1363b8b6c3  started=2026-04-16T00:23:42.447346Z  finished=2026-04-16T00:23:42.449591Z
+  run-1776299015370278000-919b231e483f  started=2026-04-16T00:23:35.370272Z  finished=2026-04-16T00:23:35.372596Z
+  run-1776299006825757000-3daebee2538e  started=2026-04-16T00:23:26.825691Z  finished=2026-04-16T00:23:26.830498Z
+  run-1776298989817427000-68c2a01ff124  started=2026-04-16T00:23:09.817398Z  finished=2026-04-16T00:23:09.822381Z
+
+Observations:
+  1. 2026-04-16T00:24:24.273236Z  app/http-get -> error  [run=run-1776299064272817000-7953b67d6ec7]  [8089/tcp]
+     request: GET / host=123.57.225.114
+     error: Get "https://123.57.225.114:8089/": http: server gave HTTP response to HTTPS client
+  2. 2026-04-16T00:24:20.378954Z  app/http-get -> 404 Not Found  [run=run-1776299060378379000-b4e0a6133880]  [8089/tcp]
+     request: GET / host=123.57.225.114
+     response: status=404 Not Found
+     rtt_ms: 109.1
+     extra_json: {"body_preview":"{\"timestamp\":\"2026-04-16T00:24:20.322+00:00\",\"status\":404,\"error\":\"Not Found\",\"path\":\"/\"}","headers":{"Content-Type":["application/json"],"Date":["Thu, 16 Apr 2026 00:24:20 GMT"],"Vary":["Origin","Access-Control-Request-Method","Access-Control-Request-Headers"]},"status_code":404}
+  3. 2026-04-16T00:24:04.882189Z  app/http-head -> error  [run=run-1776299044881885000-af85a5d42d4c]  [8089/tcp]
+     request: HEAD / host=123.57.225.114
+     error: Head "https://123.57.225.114:8089/": http: server gave HTTP response to HTTPS client
+  4. 2026-04-16T00:24:00.012726Z  stack/tls-handshake -> error  [run=run-1776299040011434000-553177d9cdde]  [8089/tcp]
+     request: tls-handshake=123.57.225.114:8089 sni=123.57.225.114
+     error: tls: first record does not look like a TLS handshake
+     rtt_ms: 71.2
+  5. 2026-04-16T00:23:42.447977Z  app/http-get -> 404 Not Found  [run=run-1776299022447355000-5f1363b8b6c3]  [8089/tcp]
+     request: GET / host=123.57.225.114
+     response: status=404 Not Found
+     rtt_ms: 73.8
+     extra_json: {"body_preview":"{\"timestamp\":\"2026-04-16T00:23:42.396+00:00\",\"status\":404,\"error\":\"Not Found\",\"path\":\"/\"}","headers":{"Content-Type":["application/json"],"Date":["Thu, 16 Apr 2026 00:23:42 GMT"],"Vary":["Origin","Access-Control-Request-Method","Access-Control-Request-Headers"]},"status_code":404}
+  6. 2026-04-16T00:23:35.370946Z  app/http-head -> 404 Not Found  [run=run-1776299015370278000-919b231e483f]  [8089/tcp]
+     request: HEAD / host=123.57.225.114
+     response: status=404 Not Found
+     rtt_ms: 97.3
+     extra_json: {"headers":{"Content-Type":["application/json"],"Date":["Thu, 16 Apr 2026 00:23:35 GMT"],"Vary":["Origin","Access-Control-Request-Method","Access-Control-Request-Headers"]},"status_code":404}
+  7. 2026-04-16T00:23:26.827718Z  stack/banner-read -> timeout  [run=run-1776299006825757000-3daebee2538e]  [8089/tcp]
+     request: banner-read=123.57.225.114:8089 bytes=512
+     response: connected but no banner received before timeout
+     rtt_ms: 5041.1
+  8. 2026-04-16T00:23:09.819209Z  raw/tcp-syn -> open  [run=run-1776298989817427000-68c2a01ff124]  [8089/tcp]
+     request: tcp 123.57.225.114:8089 src_port=57096 flags=syn ttl=64 tos=0 seq=2064077003 window=1024
+     response: flags=syn,ack
+     rtt_ms: 250.7
+     extra_json: {"flags":"syn,ack"}
+(base) liningyu@LiNingyudeMacBook-Air manual-test % sudo ../goscan gping history --uam-db $DB --ip $TARGET --port 21  --limit 20 --verbose
+sudo ../goscan gping history --uam-db $DB --ip $TARGET --port 22  --limit 20 --verbose
+sudo ../goscan gping history --uam-db $DB --ip $TARGET --port 80  --limit 20 --verbose
+sudo ../goscan gping history --uam-db $DB --ip $TARGET --port 443 --limit 20 --verbose
+gping history for 123.57.225.114 21/tcp
+Generated at: 2026-04-16T00:24:37Z
+
+Current Endpoint: state=open service=- verify=confirmed
+
+Recent gping runs:
+  run-1776298978456541000-f9ab6349d77a  started=2026-04-16T00:22:58.456503Z  finished=2026-04-16T00:22:58.462412Z
+  run-1776298957928188000-ff813a681a30  started=2026-04-16T00:22:37.928125Z  finished=2026-04-16T00:22:37.933308Z
+
+Observations:
+  1. 2026-04-16T00:22:58.459252Z  app/ftp-banner -> error  [run=run-1776298978456541000-f9ab6349d77a]  [21/tcp]
+     request: connect read-banner
+     error: read tcp 172.20.10.2:55418->123.57.225.114:21: i/o timeout
+  2. 2026-04-16T00:22:37.930537Z  stack/banner-read -> timeout  [run=run-1776298957928188000-ff813a681a30]  [21/tcp]
+     request: banner-read=123.57.225.114:21 bytes=512
+     response: connected but no banner received before timeout
+     rtt_ms: 5007.1
+gping history for 123.57.225.114 22/tcp
+Generated at: 2026-04-16T00:24:37Z
+
+Current Endpoint: state=open service=ssh verify=confirmed
+Details: product=OpenSSH  version=8.7  banner=SSH-2.0-OpenSSH_8.7
+
+Recent gping runs:
+  run-1776298935454191000-5076a851e2d0  started=2026-04-16T00:22:15.454185Z  finished=2026-04-16T00:22:15.4634Z
+
+Observations:
+  1. 2026-04-16T00:22:15.461226Z  app/ssh-hostkey -> success  [run=run-1776298935454191000-5076a851e2d0]  [22/tcp]
+     request: send-identification send-client-kexinit send-ecdh-init
+     response: hostkey=ssh-ed25519 fingerprint=SHA256:fz/LpUN0hbi4cFxPuaFeaSp6emavs1OYAQxx6TwPM6A
+     rtt_ms: 131.2
+     extra_json: {"banner":"SSH-2.0-OpenSSH_8.7","hostkey_algorithms":["rsa-sha2-512","rsa-sha2-256","ecdsa-sha2-nistp256","ssh-ed25519"],"hostkey_blob_size":51,"hostkey_fingerprint":"SHA256:fz/LpUN0hbi4cFxPuaFeaSp6emavs1OYAQxx6TwPM6A","hostkey_type":"ssh-ed25519"}
+  2. 2026-04-16T00:22:15.459327Z  app/ssh-kexinit -> success  [run=run-1776298935454191000-5076a851e2d0]  [22/tcp]
+     request: send-identification read-kexinit
+     response: kex=curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp256,ecdh-sha2-nist... hostkey=rsa-sha2-512,rsa-sha2-256,ecdsa-sha2-nistp256,ssh-ed25519
+     rtt_ms: 82.1
+     extra_json: {"banner":"SSH-2.0-OpenSSH_8.7","ciphers_client_to_server":["aes256-gcm@openssh.com","chacha20-poly1305@openssh.com","aes256-ctr","aes128-gcm@openssh.com","aes128-ctr"],"ciphers_server_to_client":["aes256-gcm@openssh.com","chacha20-poly1305@openssh.com","aes256-ctr","aes128-gcm@openssh.com","aes128-ctr"],"hostkey_algorithms":["rsa-sha2-512","rsa-sha2-256","ecdsa-sha2-nistp256","ssh-ed25519"],"kex_algorithms":["curve25519-sha256","curve25519-sha256@libssh.org","ecdh-sha2-nistp256","ecdh-sha2-nistp384","ecdh-sha2-nistp521","diffie-hellman-group-exchange-sha256","diffie-hellman-group14-sha256","diffie-hellman-group16-sha512","diffie-hellman-group18-sha512","kex-strict-s-v00@openssh.com"],"macs_client_to_server":["hmac-sha2-256-etm@openssh.com","hmac-sha1-etm@openssh.com","umac-128-etm@openssh.com","hmac-sha2-512-etm@openssh.com","hmac-sha2-256","hmac-sha1","umac-128@openssh.com","hmac-sha2-512"],"macs_server_to_client":["hmac-sha2-256-etm@openssh.com","hmac-sha1-etm@openssh.com","umac-128-etm@openssh.com","hmac-sha2-512-etm@openssh.com","hmac-sha2-256","hmac-sha1","umac-128@openssh.com","hmac-sha2-512"]}
+  3. 2026-04-16T00:22:15.455662Z  app/ssh-banner -> success  [run=run-1776298935454191000-5076a851e2d0]  [22/tcp]
+     request: connect read-identification
+     response: SSH-2.0-OpenSSH_8.7
+     rtt_ms: 42.8
+     extra_json: {"banner":"SSH-2.0-OpenSSH_8.7","protocol_version":"2.0","software_version":"OpenSSH_8.7"}
+gping history for 123.57.225.114 80/tcp
+Generated at: 2026-04-16T00:24:38Z
+
+Current Endpoint: state=open service=http verify=pending
+Details: product=nginx  version=1.20.1  banner=nginx/1.20.1
+
+Recent gping runs:
+  run-1776298893750206000-7913f5304353  started=2026-04-16T00:21:33.750191Z  finished=2026-04-16T00:21:33.755973Z
+
+Observations:
+  1. 2026-04-16T00:21:33.754641Z  app/http-get -> 200 OK  [run=run-1776298893750206000-7913f5304353]  [80/tcp]
+     request: GET / host=123.57.225.114
+     response: status=200 OK server=nginx/1.20.1  title=Lny的测试站点 length=3808
+     rtt_ms: 67.7
+     extra_json: {"body_preview":"\u003c!DOCTYPE html\u003e\n\u003chtml lang=\"en\"\u003e\n\u003chead\u003e\n    \u003cmeta charset=\"UTF-8\"\u003e\n    \u003cmeta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"\u003e\n    \u003ctitle\u003eLny的测试站点\u003c/title\u003e\n    \u003cstyle\u003e\n      y {\n            font-family: Arial, sans-serif;\n            background-color: #f4f4f9;\n            display: flex;\n            justify-content: center;\n            align-items: center;\n            height: 100vh;\n            margin: 0;\n        }\n        .container {\n            background: white;\n            b","headers":{"Accept-Ranges":["bytes"],"Content-Length":["3808"],"Content-Type":["text/html"],"Date":["Thu, 16 Apr 2026 00:21:33 GMT"],"Etag":["\"691f0675-ee0\""],"Last-Modified":["Thu, 20 Nov 2025 12:15:49 GMT"],"Server":["nginx/1.20.1"]},"status_code":200,"title":"Lny的测试站点"}
+  2. 2026-04-16T00:21:33.751259Z  app/http-head -> 200 OK  [run=run-1776298893750206000-7913f5304353]  [80/tcp]
+     request: HEAD / host=123.57.225.114
+     response: status=200 OK server=nginx/1.20.1   length=3808
+     rtt_ms: 101.4
+     extra_json: {"headers":{"Accept-Ranges":["bytes"],"Content-Length":["3808"],"Content-Type":["text/html"],"Date":["Thu, 16 Apr 2026 00:21:33 GMT"],"Etag":["\"691f0675-ee0\""],"Last-Modified":["Thu, 20 Nov 2025 12:15:49 GMT"],"Server":["nginx/1.20.1"]},"status_code":200}
+gping history for 123.57.225.114 443/tcp
+Generated at: 2026-04-16T00:24:38Z
+
+Current Endpoint: state=open service=https verify=confirmed
+Details: product=nginx  version=1.20.1  banner=nginx/1.20.1
+
+Recent gping runs:
+  run-1776298911964048000-31a4ab71de86  started=2026-04-16T00:21:51.964041Z  finished=2026-04-16T00:21:51.97355Z
+
+Observations:
+  1. 2026-04-16T00:21:51.972084Z  app/http-get -> 404 Not Found  [run=run-1776298911964048000-31a4ab71de86]  [443/tcp]
+     request: GET /health host=123.57.225.114
+     response: status=404 Not Found server=nginx/1.20.1  title=The page is not found length=3332
+     rtt_ms: 131.0
+     extra_json: {"body_preview":"\u003c!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\"\u003e\n\n\u003chtml xmlns=\"http://www.w3.org/1999/xhtml\" xml:lang=\"en\"\u003e\n  \u003chead\u003e\n    \u003ctitle\u003eThe page is not found\u003c/title\u003e\n    \u003cmeta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\" /\u003e\n    \u003cstyle type=\"text/css\"\u003e\n      /*\u003c![CDATA[*/\n      body {\n        background-color: #fff;\n        color: #000;\n        font-size: 0.9em;\n        font-family: sans-serif, helvetica;\n        margin: 0;\n        padding: 0;\n      }\n","headers":{"Content-Length":["3332"],"Content-Type":["text/html"],"Date":["Thu, 16 Apr 2026 00:21:51 GMT"],"Etag":["\"652d79c6-d04\""],"Server":["nginx/1.20.1"]},"status_code":404,"title":"The page is not found"}
+  2. 2026-04-16T00:21:51.97045Z  app/http-head -> 200 OK  [run=run-1776298911964048000-31a4ab71de86]  [443/tcp]
+     request: HEAD / host=123.57.225.114
+     response: status=200 OK server=nginx/1.20.1   length=3808
+     rtt_ms: 114.7
+     extra_json: {"headers":{"Accept-Ranges":["bytes"],"Content-Length":["3808"],"Content-Type":["text/html"],"Date":["Thu, 16 Apr 2026 00:21:51 GMT"],"Etag":["\"691f0675-ee0\""],"Last-Modified":["Thu, 20 Nov 2025 12:15:49 GMT"],"Server":["nginx/1.20.1"]},"status_code":200}
+  3. 2026-04-16T00:21:51.968491Z  stack/tls-handshake -> success  [run=run-1776298911964048000-31a4ab71de86]  [443/tcp]
+     request: tls-handshake=123.57.225.114:443 sni=123.57.225.114
+     response: version=TLS1.3  subject=CN=liningyu.top
+     rtt_ms: 90.0
+     extra_json: {"alpn":"","certificate":{"dns":["liningyu.top"],"issuer":"CN=R10,O=Let's Encrypt,C=US","subject":"CN=liningyu.top"},"cipher_suite":"TLS_AES_256_GCM_SHA384","tls_version":"TLS1.3"}
+  4. 2026-04-16T00:21:51.965573Z  stack/tcp-connect -> open  [run=run-1776298911964048000-31a4ab71de86]  [443/tcp]
+     request: dial=tcp 123.57.225.114:443
+     response: tcp connection established
+     rtt_ms: 38.9
+(base) liningyu@LiNingyudeMacBook-Air manual-test % sudo ../goscan uam endpoints --db $DB --ip $TARGET --protocol tcp --limit 20
+[
+  {
+    "endpoint_id": "host:123.57.225.114:tcp:21",
+    "ip": "123.57.225.114",
+    "protocol": "tcp",
+    "port": 21,
+    "current_port_state": "open",
+    "port_state_confidence": 96,
+    "verification_state": "confirmed",
+    "last_seen_at": "2026-04-16T00:22:58.459252Z",
+    "source_tool": "gping"
+  },
+  {
+    "endpoint_id": "host:123.57.225.114:tcp:22",
+    "ip": "123.57.225.114",
+    "protocol": "tcp",
+    "port": 22,
+    "current_port_state": "open",
+    "port_state_confidence": 96,
+    "current_service": "ssh",
+    "current_product": "OpenSSH",
+    "current_version": "8.7",
+    "current_info": "protocol 2.0",
+    "current_banner": "SSH-2.0-OpenSSH_8.7",
+    "current_cpes_json": "[\"a:openbsd:openssh:8.7\"]",
+    "verification_state": "confirmed",
+    "last_seen_at": "2026-04-16T00:22:15.461226Z",
+    "source_tool": "gping"
+  },
+  {
+    "endpoint_id": "host:123.57.225.114:tcp:80",
+    "ip": "123.57.225.114",
+    "protocol": "tcp",
+    "port": 80,
+    "current_port_state": "open",
+    "port_state_confidence": 96,
+    "current_service": "http",
+    "current_product": "nginx",
+    "current_version": "1.20.1",
+    "current_banner": "nginx/1.20.1",
+    "current_cpes_json": "[\"a:igor_sysoev:nginx:1.20.1\"]",
+    "verification_state": "pending",
+    "last_seen_at": "2026-04-16T00:21:33.754641Z",
+    "source_tool": "gping"
+  },
+  {
+    "endpoint_id": "host:123.57.225.114:tcp:443",
+    "ip": "123.57.225.114",
+    "protocol": "tcp",
+    "port": 443,
+    "current_port_state": "open",
+    "port_state_confidence": 96,
+    "current_service": "https",
+    "current_product": "nginx",
+    "current_version": "1.20.1",
+    "current_banner": "nginx/1.20.1",
+    "verification_state": "confirmed",
+    "last_seen_at": "2026-04-16T00:21:51.972084Z",
+    "source_tool": "gping"
+  },
+  {
+    "endpoint_id": "host:123.57.225.114:tcp:8089",
+    "ip": "123.57.225.114",
+    "protocol": "tcp",
+    "port": 8089,
+    "current_port_state": "open",
+    "port_state_confidence": 96,
+    "current_service": "https",
+    "current_banner": "HTTP/1.1 404 Vary: Origin Vary: Access-Control-Reque...",
+    "verification_state": "overridden",
+    "last_seen_at": "2026-04-16T00:24:24.273236Z",
+    "source_tool": "gping"
+  }
+]
+(base) liningyu@LiNingyudeMacBook-Air manual-test % sudo ../goscan uam report --db $DB --ip $TARGET
+UAM Report for 123.57.225.114
+Generated at: 2026-04-16T00:25:39Z
+Filter: ip=123.57.225.114
+
+Host Status: reachable (confidence=94, verification=none, source=gping, last_seen=2026-04-16T00:24:24.273236Z)
+
+Recent Runs:
+  run-1776299064272817000-7953b67d6ec7  [gping/gping]  started=2026-04-16T00:24:24.272815Z  finished=2026-04-16T00:24:24.274754Z
+  run-1776299060378379000-b4e0a6133880  [gping/gping]  started=2026-04-16T00:24:20.378374Z  finished=2026-04-16T00:24:20.381275Z
+  run-1776299044881885000-af85a5d42d4c  [gping/gping]  started=2026-04-16T00:24:04.881883Z  finished=2026-04-16T00:24:04.883236Z
+  run-1776299040011434000-553177d9cdde  [gping/gping]  started=2026-04-16T00:24:00.011432Z  finished=2026-04-16T00:24:00.015215Z
+  run-1776299022447355000-5f1363b8b6c3  [gping/gping]  started=2026-04-16T00:23:42.447346Z  finished=2026-04-16T00:23:42.449591Z
+  run-1776299015370278000-919b231e483f  [gping/gping]  started=2026-04-16T00:23:35.370272Z  finished=2026-04-16T00:23:35.372596Z
+  run-1776299006825757000-3daebee2538e  [gping/gping]  started=2026-04-16T00:23:26.825691Z  finished=2026-04-16T00:23:26.830498Z
+  run-1776298989817427000-68c2a01ff124  [gping/gping]  started=2026-04-16T00:23:09.817398Z  finished=2026-04-16T00:23:09.822381Z
+  run-1776298978456541000-f9ab6349d77a  [gping/gping]  started=2026-04-16T00:22:58.456503Z  finished=2026-04-16T00:22:58.462412Z
+  run-1776298957928188000-ff813a681a30  [gping/gping]  started=2026-04-16T00:22:37.928125Z  finished=2026-04-16T00:22:37.933308Z
+  run-1776298935454191000-5076a851e2d0  [gping/gping]  started=2026-04-16T00:22:15.454185Z  finished=2026-04-16T00:22:15.4634Z
+  run-1776298911964048000-31a4ab71de86  [gping/gping]  started=2026-04-16T00:21:51.964041Z  finished=2026-04-16T00:21:51.97355Z
+  run-1776298893750206000-7913f5304353  [gping/gping]  started=2026-04-16T00:21:33.750191Z  finished=2026-04-16T00:21:33.755973Z
+  run-1776298508707677000-f66a58a4015c  [gs/gs-l4l7]  started=2026-04-16T00:15:08.707663Z  finished=2026-04-16T00:15:12.142617Z
+  run-1776298429499211000-819cfecd649c  [gs/gs-l4l7]  started=2026-04-16T00:13:49.499195Z  finished=2026-04-16T00:14:05.70569Z
+
+PORT      STATE         SERVICE        VERSION/INFO                    SOURCE   VERIFY
+21/tcp    open          -              -                              gping    confirmed
+22/tcp    open          ssh            OpenSSH 8.7 (protocol 2.0)     gping    confirmed
+53/udp    filtered      -              -                              gs       none
+80/tcp    open          http           nginx 1.20.1                   gping    pending
+123/udp   filtered      -              -                              gs       none
+161/udp   filtered      -              -                              gs       none
+443/tcp   open          https          nginx 1.20.1                   gping    confirmed
+8089/tcp  open          https          HTTP/1.1 404 Vary: Origin Vary: Access-Control-Reque... gping    overridden
+
+Host Facts:
+  2026-04-16T00:15:09.374533Z  tcp-syn-ping -> alive  [run=run-1776298508707677000-f66a58a4015c]
+  2026-04-16T00:15:09.369715Z  icmp-echo -> alive  [run=run-1776298508707677000-f66a58a4015c]
+  2026-04-16T00:13:50.184597Z  icmp-echo -> alive  [run=run-1776298429499211000-819cfecd649c]
+  2026-04-16T00:13:50.180367Z  tcp-syn-ping -> alive  [run=run-1776298429499211000-819cfecd649c]
+
+123/udp Facts:
+  2026-04-16T00:15:11.133568Z  udp -> filtered  [run=run-1776298508707677000-f66a58a4015c]
+
+161/udp Facts:
+  2026-04-16T00:15:11.137069Z  udp -> filtered  [run=run-1776298508707677000-f66a58a4015c]
+
+21/tcp Facts:
+  2026-04-16T00:22:58.459252Z  ftp-banner -> error  [run=run-1776298978456541000-f9ab6349d77a]  route=app  error=read tcp 172.20.10.2:55418->123.57.225.114:21: i/o timeout
+  2026-04-16T00:22:37.930537Z  banner-read -> timeout  [run=run-1776298957928188000-ff813a681a30]  route=stack  connected but no banner received before timeout
+  2026-04-16T00:13:51.490132Z  tcp-ack -> filtered  [run=run-1776298429499211000-819cfecd649c]
+  2026-04-16T00:13:51.485787Z  tcp-window -> filtered  [run=run-1776298429499211000-819cfecd649c]
+  2026-04-16T00:13:50.187449Z  tcp-syn -> open  [run=run-1776298429499211000-819cfecd649c]
+
+22/tcp Facts:
+  2026-04-16T00:22:15.461226Z  ssh-hostkey -> success  [run=run-1776298935454191000-5076a851e2d0]  route=app  hostkey=ssh-ed25519 fingerprint=SHA256:fz/LpUN0hbi4cFxPuaFeaSp6emavs1OYAQxx6TwPM6A
+  2026-04-16T00:22:15.459327Z  ssh-kexinit -> success  [run=run-1776298935454191000-5076a851e2d0]  route=app  kex=curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp256,ecdh-sha2-nist... hostkey=rsa-sha2-512,rsa-sha2-256,ecdsa-sha2-nistp256,ssh-ed25519
+  2026-04-16T00:22:15.455662Z  ssh-banner -> success  [run=run-1776298935454191000-5076a851e2d0]  route=app  SSH-2.0-OpenSSH_8.7
+  2026-04-16T00:13:51.491293Z  tcp-ack -> filtered  [run=run-1776298429499211000-819cfecd649c]
+  2026-04-16T00:13:51.490719Z  tcp-window -> filtered  [run=run-1776298429499211000-819cfecd649c]
+  2026-04-16T00:13:51.06064Z  tcp-syn -> open  [run=run-1776298429499211000-819cfecd649c]  service=ssh product=OpenSSH banner=OpenSSH 8.7 (protocol 2.0)
+  2026-04-16T00:13:50.224096Z  tcp-syn -> open  [run=run-1776298429499211000-819cfecd649c]
+
+443/tcp Facts:
+  2026-04-16T00:21:51.972084Z  http-get -> 404 Not Found  [run=run-1776298911964048000-31a4ab71de86]  route=app  status=404 Not Found server=nginx/1.20.1  title=The page is not found length=3332
+  2026-04-16T00:21:51.97045Z  http-head -> 200 OK  [run=run-1776298911964048000-31a4ab71de86]  route=app  status=200 OK server=nginx/1.20.1   length=3808
+  2026-04-16T00:21:51.968491Z  tls-handshake -> success  [run=run-1776298911964048000-31a4ab71de86]  route=stack  version=TLS1.3  subject=CN=liningyu.top
+  2026-04-16T00:21:51.965573Z  tcp-connect -> open  [run=run-1776298911964048000-31a4ab71de86]  route=stack  tcp connection established
+  2026-04-16T00:13:56.330052Z  tcp-syn -> open  [run=run-1776298429499211000-819cfecd649c]  service=ssl
+  2026-04-16T00:13:51.48816Z  tcp-ack -> filtered  [run=run-1776298429499211000-819cfecd649c]
+  2026-04-16T00:13:51.486773Z  tcp-window -> filtered  [run=run-1776298429499211000-819cfecd649c]
+  2026-04-16T00:13:50.219617Z  tcp-syn -> open  [run=run-1776298429499211000-819cfecd649c]
+
+53/udp Facts:
+  2026-04-16T00:15:11.135832Z  udp -> filtered  [run=run-1776298508707677000-f66a58a4015c]
+
+80/tcp Facts:
+  2026-04-16T00:21:33.754641Z  http-get -> 200 OK  [run=run-1776298893750206000-7913f5304353]  route=app  status=200 OK server=nginx/1.20.1  title=Lny的测试站点 h=3808
+  2026-04-16T00:21:33.751259Z  http-head -> 200 OK  [run=run-1776298893750206000-7913f5304353]  route=app  status=200 OK server=nginx/1.20.1   length=3808
+  2026-04-16T00:13:56.336903Z  tcp-syn -> open  [run=run-1776298429499211000-819cfecd649c]  service=http product=nginx banner=nginx 1.20.1
+  2026-04-16T00:13:51.488825Z  tcp-ack -> filtered  [run=run-1776298429499211000-819cfecd649c]
+  2026-04-16T00:13:51.487501Z  tcp-window -> filtered  [run=run-1776298429499211000-819cfecd649c]
+  2026-04-16T00:13:50.222243Z  tcp-syn -> open  [run=run-1776298429499211000-819cfecd649c]
+
+8089/tcp Facts:
+  2026-04-16T00:24:24.273236Z  http-get -> error  [run=run-1776299064272817000-7953b67d6ec7]  route=app  error=Get "https://123.57.225.114:8089/": http: server gave HTTP response to HTTPS client
+  2026-04-16T00:24:20.378954Z  http-get -> 404 Not Found  [run=run-1776299060378379000-b4e0a6133880]  route=app  status=404 Not Found
+  2026-04-16T00:24:04.882189Z  http-head -> error  [run=run-1776299044881885000-af85a5d42d4c]  route=app  error=Head "https://123.57.225.114:8089/": http: server gave HTTP response to HTTPS client
+  2026-04-16T00:24:00.012726Z  tls-handshake -> error  [run=run-1776299040011434000-553177d9cdde]  route=stack  error=tls: first record does not look like a TLS handshake
+  2026-04-16T00:23:42.447977Z  http-get -> 404 Not Found  [run=run-1776299022447355000-5f1363b8b6c3]  route=app  status=404 Not Found
+  2026-04-16T00:23:35.370946Z  http-head -> 404 Not Found  [run=run-1776299015370278000-919b231e483f]  route=app  status=404 Not Found
+  2026-04-16T00:23:26.827718Z  banner-read -> timeout  [run=run-1776299006825757000-3daebee2538e]  route=stack  connected but no banner received before timeout
+  2026-04-16T00:23:09.819209Z  tcp-syn -> open  [run=run-1776298989817427000-68c2a01ff124]  route=raw  flags=syn,ack
+  2026-04-16T00:13:58.382836Z  tcp-syn -> open  [run=run-1776298429499211000-819cfecd649c]  service=unknown  banner=HTTP/1.1 404 Vary: Origin Vary: Access-Control-Reque...
+  2026-04-16T00:13:51.489506Z  tcp-ack -> filtered  [run=run-1776298429499211000-819cfecd649c]
+  2026-04-16T00:13:51.483313Z  tcp-window -> filtered  [run=run-1776298429499211000-819cfecd649c]
+  2026-04-16T00:13:50.22564Z  tcp-syn -> open  [run=run-1776298429499211000-819cfecd649c]
+(base) liningyu@LiNingyudeMacBook-Air manual-test %

@@ -1,0 +1,39 @@
+kind: gping.template/v1
+name: http/reverse-proxy-confirm
+description: Confirm whether an endpoint behaves like a reverse proxy
+applies_to:
+  protocol: tcp
+  ports: [80, 443, 8080, 8443]
+  scheme: [http, https]
+vars:
+  path:
+    default: /
+workflow:
+  - id: head_root
+    name: http-head
+    route: app
+    adapter: http
+    method: http-head
+    params:
+      url: ${scheme}://${host}${path}
+      host_header: ${host}
+      sni: ${sni}
+      insecure_skip_verify: true
+  - id: get_root
+    name: http-get
+    route: app
+    adapter: http
+    method: http-get
+    params:
+      url: ${scheme}://${host}${path}
+      host_header: ${host}
+      sni: ${sni}
+      insecure_skip_verify: true
+suggest:
+  verification_state: pending
+recommend:
+  when_all:
+    - head_root.raw_status != "error"
+    - get_root.fields.server != ""
+  then:
+    verification_state: pending

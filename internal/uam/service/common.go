@@ -16,6 +16,13 @@ type contractIngester struct {
 	run   domain.Run
 }
 
+func (c *contractIngester) RunID() string {
+	if c == nil {
+		return ""
+	}
+	return c.run.RunID
+}
+
 type ContractRunMetadata struct {
 	Command      string
 	Targets      []string

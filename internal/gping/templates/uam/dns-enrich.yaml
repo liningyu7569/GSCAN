@@ -1,0 +1,32 @@
+kind: gping.template/v1
+name: uam/dns-enrich
+description: Enrich a UAM DNS endpoint with a lightweight recursive-style query
+applies_to:
+  current_service: [dns]
+vars:
+  qname:
+    default: example.com
+  qtype:
+    default: A
+workflow:
+  - id: query
+    route: app
+    adapter: dns
+    method: dns-query
+    params:
+      qname: ${qname}
+      qtype: ${qtype}
+      rd: true
+      transport: udp
+extract:
+  - from: query
+    field: response_role
+    to_claim: dns.response_role
+suggest:
+  verification_state: pending
+recommend:
+  when_all:
+    - query.raw_status != "error"
+    - query.raw_status != "malformed"
+  then:
+    verification_state: pending

@@ -1,0 +1,18 @@
+kind: gping.template/v1
+name: ssh/basic-confirm
+description: Confirm whether an endpoint behaves like an SSH service by reading its identification banner
+applies_to:
+  protocol: tcp
+  current_service: [ssh]
+workflow:
+  - id: banner
+    route: app
+    adapter: ssh
+    method: ssh-banner
+suggest:
+  verification_state: pending
+recommend:
+  when_all:
+    - banner.raw_status == "success"
+  then:
+    verification_state: pending

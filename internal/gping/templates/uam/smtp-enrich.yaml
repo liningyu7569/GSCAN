@@ -1,0 +1,41 @@
+kind: gping.template/v1
+name: uam/smtp-enrich
+description: Enrich a UAM SMTP endpoint with EHLO and STARTTLS evidence
+applies_to:
+  protocol: tcp
+  current_service: [smtp]
+vars:
+  ehlo_name:
+    default: gping.local
+workflow:
+  - id: banner
+    route: app
+    adapter: smtp
+    method: smtp-banner
+  - id: ehlo
+    route: app
+    adapter: smtp
+    method: smtp-ehlo
+    when: banner.raw_status == "220"
+    params:
+      ehlo_name: ${ehlo_name}
+    continue_on_error: true
+  - id: starttls
+    route: app
+    adapter: smtp
+    method: smtp-starttls
+    when: ehlo.fields.starttls_advertised == "true"
+    params:
+      ehlo_name: ${ehlo_name}
+    continue_on_error: true
+extract:
+  - from: ehlo
+    field: capabilities
+    to_claim: smtp.capabilities
+suggest:
+  verification_state: pending
+recommend:
+  when_all:
+    - banner.raw_status == "220"
+  then:
+    verification_state: pending

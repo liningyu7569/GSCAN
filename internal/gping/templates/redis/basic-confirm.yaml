@@ -1,0 +1,18 @@
+kind: gping.template/v1
+name: redis/basic-confirm
+description: Confirm whether an endpoint behaves like a Redis instance with a lightweight PING
+applies_to:
+  protocol: tcp
+  current_service: [redis]
+workflow:
+  - id: ping
+    route: app
+    adapter: redis
+    method: redis-ping
+suggest:
+  verification_state: pending
+recommend:
+  when_all:
+    - ping.raw_status == "PONG"
+  then:
+    verification_state: pending

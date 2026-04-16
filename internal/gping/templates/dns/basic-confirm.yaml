@@ -1,0 +1,28 @@
+kind: gping.template/v1
+name: dns/basic-confirm
+description: Confirm whether an endpoint behaves like a DNS service with a lightweight query
+applies_to:
+  current_service: [dns]
+vars:
+  qname:
+    default: example.com
+  qtype:
+    default: A
+workflow:
+  - id: query
+    route: app
+    adapter: dns
+    method: dns-query
+    params:
+      qname: ${qname}
+      qtype: ${qtype}
+      rd: true
+      transport: udp
+suggest:
+  verification_state: pending
+recommend:
+  when_all:
+    - query.raw_status != "error"
+    - query.raw_status != "malformed"
+  then:
+    verification_state: pending

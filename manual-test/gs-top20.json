@@ -1,0 +1,87 @@
+{
+  "metadata": {
+    "command": "../goscan scan 123.57.225.114 --top-ports 20 -o gs-top20.json --output-format json",
+    "targets": [
+      "123.57.225.114"
+    ],
+    "profiles": [
+      "tcp-syn"
+    ],
+    "resolved_ports": [
+      80,
+      23,
+      443,
+      21,
+      22,
+      25,
+      3389,
+      110,
+      445,
+      139,
+      143,
+      53,
+      135,
+      3306,
+      8080,
+      1723,
+      111,
+      995,
+      993,
+      5900
+    ],
+    "service_scan": false,
+    "output_format": "json",
+    "generated_at": "2026-04-16T08:15:59+08:00"
+  },
+  "hosts": [
+    {
+      "ip": "123.57.225.114",
+      "ports": [
+        {
+          "port": 21,
+          "protocol": "TCP",
+          "summary_state": "open",
+          "facts": [
+            {
+              "method": "tcp-syn",
+              "state": "open"
+            }
+          ]
+        },
+        {
+          "port": 22,
+          "protocol": "TCP",
+          "summary_state": "open",
+          "facts": [
+            {
+              "method": "tcp-syn",
+              "state": "open"
+            }
+          ]
+        },
+        {
+          "port": 80,
+          "protocol": "TCP",
+          "summary_state": "open",
+          "facts": [
+            {
+              "method": "tcp-syn",
+              "state": "open"
+            }
+          ]
+        },
+        {
+          "port": 443,
+          "protocol": "TCP",
+          "summary_state": "open",
+          "facts": [
+            {
+              "method": "tcp-syn",
+              "state": "open"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

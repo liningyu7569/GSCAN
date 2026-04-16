@@ -1,0 +1,82 @@
+metadata:
+    command: ../goscan scan 123.57.225.114 -p 21,22,80,443,8089 --syn -V -o gs-tcp-full.yaml --output-format yaml
+    targets:
+        - 123.57.225.114
+    profiles:
+        - tcp-syn
+    resolved_ports:
+        - 21
+        - 22
+        - 80
+        - 443
+        - 8089
+    service_scan: true
+    output_format: yaml
+    generated_at: "2026-04-16T08:14:44+08:00"
+hosts:
+    - ip: 123.57.225.114
+      ports:
+        - port: 21
+          protocol: TCP
+          summary_state: open
+          service: unknown
+          facts:
+            - method: tcp-syn
+              state: open
+              service: unknown
+        - port: 22
+          protocol: TCP
+          summary_state: open
+          service: ssh
+          product: OpenSSH
+          version: "8.7"
+          info: protocol 2.0
+          cpes:
+            - a:openbsd:openssh:8.7
+          banner: OpenSSH 8.7 (protocol 2.0)
+          facts:
+            - method: tcp-syn
+              state: open
+              service: ssh
+              product: OpenSSH
+              version: "8.7"
+              info: protocol 2.0
+              cpes:
+                - a:openbsd:openssh:8.7
+              banner: OpenSSH 8.7 (protocol 2.0)
+        - port: 80
+          protocol: TCP
+          summary_state: open
+          service: http
+          product: nginx
+          version: 1.20.1
+          cpes:
+            - a:igor_sysoev:nginx:1.20.1
+          banner: nginx 1.20.1
+          facts:
+            - method: tcp-syn
+              state: open
+              service: http
+              product: nginx
+              version: 1.20.1
+              cpes:
+                - a:igor_sysoev:nginx:1.20.1
+              banner: nginx 1.20.1
+        - port: 443
+          protocol: TCP
+          summary_state: open
+          service: ssl
+          facts:
+            - method: tcp-syn
+              state: open
+              service: ssl
+        - port: 8089
+          protocol: TCP
+          summary_state: open
+          service: unknown
+          banner: 'HTTP/1.1 404 Vary: Origin Vary: Access-Control-Reque...'
+          facts:
+            - method: tcp-syn
+              state: open
+              service: unknown
+              banner: 'HTTP/1.1 404 Vary: Origin Vary: Access-Control-Reque...'

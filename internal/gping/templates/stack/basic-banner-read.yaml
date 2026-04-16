@@ -1,0 +1,12 @@
+kind: gping.template/v1
+name: stack/basic-banner-read
+description: Open a TCP connection and capture the first service banner for lightweight confirmation
+applies_to:
+  protocol: tcp
+workflow:
+  - id: banner
+    name: banner-read
+    route: stack
+    method: banner-read
+    params:
+      read_bytes: 512

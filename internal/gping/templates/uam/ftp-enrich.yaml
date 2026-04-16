@@ -1,0 +1,40 @@
+kind: gping.template/v1
+name: uam/ftp-enrich
+description: Enrich a UAM FTP endpoint with FEAT and AUTH TLS control-plane evidence
+applies_to:
+  protocol: tcp
+  current_service: [ftp]
+workflow:
+  - id: banner
+    route: app
+    adapter: ftp
+    method: ftp-banner
+  - id: feat
+    route: app
+    adapter: ftp
+    method: ftp-feat
+    when: banner.raw_status == "220"
+    continue_on_error: true
+  - id: auth_tls
+    route: app
+    adapter: ftp
+    method: ftp-auth-tls
+    when: feat.fields.auth_tls_advertised == "true"
+    continue_on_error: true
+extract:
+  - from: feat
+    field: feat_ok
+    to_claim: ftp.command_ok
+  - from: feat
+    field: features
+    to_claim: ftp.features
+  - from: auth_tls
+    field: tls_version
+    to_claim: tls.version
+suggest:
+  verification_state: pending
+recommend:
+  when_all:
+    - banner.raw_status == "220"
+  then:
+    verification_state: pending

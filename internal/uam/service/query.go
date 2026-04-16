@@ -77,6 +77,7 @@ type ObservationRow struct {
 	ResponseSummary *string  `json:"response_summary,omitempty"`
 	RTTMs           *float64 `json:"rtt_ms,omitempty"`
 	ErrorText       *string  `json:"error_text,omitempty"`
+	ExtraJSON       *string  `json:"extra_json,omitempty"`
 	ObservedAt      string   `json:"observed_at"`
 }
 
@@ -376,7 +377,7 @@ func (q *QueryService) ListObservationsFiltered(ctx context.Context, filter Quer
 SELECT
   o.observation_id, o.run_id, o.tool, o.module_name, h.ip, e.protocol, e.port, o.route_used,
   o.action_type, o.raw_method, o.raw_status, o.request_summary, o.response_summary,
-  o.rtt_ms, o.error_text, o.observed_at
+  o.rtt_ms, o.error_text, o.extra_json, o.observed_at
 FROM observations o
 JOIN hosts h ON h.host_id = o.host_id
 LEFT JOIN endpoints e ON e.endpoint_id = o.endpoint_id`)
@@ -427,6 +428,7 @@ LEFT JOIN endpoints e ON e.endpoint_id = o.endpoint_id`)
 			responseSummary sql.NullString
 			rttMs           sql.NullFloat64
 			errorText       sql.NullString
+			extraJSON       sql.NullString
 		)
 		if err := rows.Scan(
 			&item.ObservationID,
@@ -444,6 +446,7 @@ LEFT JOIN endpoints e ON e.endpoint_id = o.endpoint_id`)
 			&responseSummary,
 			&rttMs,
 			&errorText,
+			&extraJSON,
 			&item.ObservedAt,
 		); err != nil {
 			return nil, err
@@ -457,6 +460,7 @@ LEFT JOIN endpoints e ON e.endpoint_id = o.endpoint_id`)
 		item.ResponseSummary = nullStringPtr(responseSummary)
 		item.RTTMs = nullFloatPtr(rttMs)
 		item.ErrorText = nullStringPtr(errorText)
+		item.ExtraJSON = nullStringPtr(extraJSON)
 		items = append(items, item)
 	}
 	return items, rows.Err()

@@ -1,0 +1,18 @@
+kind: gping.template/v1
+name: smtp/basic-confirm
+description: Confirm whether an endpoint behaves like an SMTP service by reading its banner
+applies_to:
+  protocol: tcp
+  current_service: [smtp]
+workflow:
+  - id: banner
+    route: app
+    adapter: smtp
+    method: smtp-banner
+suggest:
+  verification_state: pending
+recommend:
+  when_all:
+    - banner.raw_status == "220"
+  then:
+    verification_state: pending

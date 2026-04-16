@@ -1,0 +1,18 @@
+kind: gping.template/v1
+name: ftp/basic-confirm
+description: Confirm whether an endpoint behaves like an FTP control service by reading its welcome banner
+applies_to:
+  protocol: tcp
+  current_service: [ftp]
+workflow:
+  - id: banner
+    route: app
+    adapter: ftp
+    method: ftp-banner
+suggest:
+  verification_state: pending
+recommend:
+  when_all:
+    - banner.raw_status == "220"
+  then:
+    verification_state: pending

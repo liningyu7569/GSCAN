@@ -1,0 +1,14 @@
+metadata:
+    command: ../goscan scan 123.57.225.114 --udp -p 53,123,161 -V -o gs-udp.yaml --output-format yaml --uam-db manual-uam.db
+    targets:
+        - 123.57.225.114
+    profiles:
+        - udp
+    resolved_ports:
+        - 53
+        - 123
+        - 161
+    service_scan: true
+    output_format: yaml
+    generated_at: "2026-04-16T08:15:12+08:00"
+hosts: []

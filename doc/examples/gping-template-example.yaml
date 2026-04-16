@@ -1,0 +1,138 @@
+# This file is a commented example for the current gping DSL v1 shape.
+# It only uses fields that the current code already supports.
+#
+# Top-level keys currently supported:
+# - kind
+# - name
+# - description
+# - applies_to
+# - vars
+# - workflow
+# - actions          # legacy, still compatible
+# - extract
+# - recommend
+# - suggest
+#
+# Action keys currently supported:
+# - id
+# - name
+# - route
+# - adapter
+# - method
+# - url
+# - host_header
+# - sni
+# - path
+# - body
+# - payload
+# - read_bytes
+# - headers
+# - params
+# - when
+# - continue_on_error
+# - insecure_skip_verify
+#
+# Recommended use:
+# - Use raw actions for low-level state validation and packet experiments
+# - Use stack actions for connect / tls / banner verification
+# - Use app actions for protocol-aware lightweight confirmation
+
+kind: gping.template/v1
+name: example/http-post-confirm
+description: Confirm an HTTPS endpoint with a small multi-step workflow
+
+applies_to:
+  protocol: tcp
+  ports: [443, 8443]
+  current_service: [https, http]
+
+vars:
+  host:
+    default: example.internal
+  scheme:
+    default: https
+  base_path:
+    default: /
+  submit_path:
+    default: /api/check?mode=demo
+  token:
+    default: demo-token
+
+workflow:
+  # Step 1: confirm the TCP port is reachable.
+  - id: connect
+    route: stack
+    method: tcp-connect
+
+  # Step 2: confirm TLS can be established.
+  - id: tls
+    route: stack
+    method: tls-handshake
+    sni: ${host}
+    when: connect.raw_status == "open"
+    continue_on_error: true
+    insecure_skip_verify: true
+
+  # Step 3: send a GET request with custom headers.
+  - id: homepage
+    route: app
+    adapter: http
+    method: http-get
+    url: ${scheme}://${host}${base_path}
+    host_header: ${host}
+    sni: ${host}
+    headers:
+      X-Debug-Token: ${token}
+    when: tls.raw_status == "success"
+    continue_on_error: true
+    insecure_skip_verify: true
+
+  # Step 4: send a POST request with a JSON body.
+  - id: submit
+    route: app
+    adapter: http
+    method: http-post
+    url: ${scheme}://${host}${submit_path}
+    host_header: ${host}
+    sni: ${host}
+    body: |
+      {"check":"demo","token":"${token}"}
+    headers:
+      Content-Type: application/json
+      X-Debug-Token: ${token}
+    when: tls.raw_status == "success"
+    continue_on_error: true
+    insecure_skip_verify: true
+
+  # Step 5: optional raw example.
+  # This demonstrates the current raw params surface.
+  - id: raw_syn
+    route: raw
+    method: tcp-raw
+    params:
+      ttl: 32
+      src_port: 40123
+      tcp_flags: syn,ack
+      tcp_seq: 1001
+      tcp_window: 2048
+      bad_checksum: false
+    when: connect.raw_status == "open"
+    continue_on_error: true
+
+extract:
+  - from: homepage
+    field: server
+    to_claim: http.server
+  - from: tls
+    field: tls_version
+    to_claim: tls.version
+
+recommend:
+  when_all:
+    - tls.raw_status == "success"
+    - homepage.fields.status_code == "200"
+  then:
+    verification_state: pending
+
+suggest:
+  verification_state: pending

@@ -1,0 +1,40 @@
+kind: gping.template/v1
+name: uam/mysql-enrich
+description: Enrich a UAM MySQL endpoint with greeting, capability, and TLS upgrade evidence
+applies_to:
+  protocol: tcp
+  current_service: [mysql]
+workflow:
+  - id: greeting
+    route: app
+    adapter: mysql
+    method: mysql-greeting
+  - id: capabilities
+    route: app
+    adapter: mysql
+    method: mysql-capabilities
+    when: greeting.raw_status == "success"
+    continue_on_error: true
+  - id: starttls
+    route: app
+    adapter: mysql
+    method: mysql-starttls
+    when: capabilities.fields.ssl_supported == "true"
+    continue_on_error: true
+extract:
+  - from: capabilities
+    field: capabilities
+    to_claim: mysql.capabilities
+  - from: capabilities
+    field: server_flavor_hint
+    to_claim: mysql.server_flavor
+  - from: starttls
+    field: tls_version
+    to_claim: tls.version
+suggest:
+  verification_state: pending
+recommend:
+  when_all:
+    - greeting.raw_status == "success"
+  then:
+    verification_state: pending

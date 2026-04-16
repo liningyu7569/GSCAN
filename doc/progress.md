@@ -2,177 +2,181 @@
 
 ## 当前阶段
 
-当前项目已经从“第一阶段末尾”进入“第二阶段前半段”。
+当前项目已经进入“第二阶段总体收口”。
 
-第一阶段的核心目标是：
+此时仓库里的主线已经稳定成三层：
 
-- 高性能原始扫描主链收口
-- 多协议 L4 事实流打通
-- 可用 L7 服务识别落地
-- 最终画像输出稳定
+1. GS：高速发现与服务识别
+2. UAM：统一资产状态层
+3. gping：围绕现有资产做定向确认、人工增强和轻量 enrich
 
-这一部分已经完成。
+如果只看主骨架目标，`GS + UAM + gping 第二阶段主链` 已经基本成型。
 
-当前第二阶段已经正式落地的是：
-
-- UAM SQLite 契约层
-- GS -> UAM 正式接入
-- UAM 基础查询与综合报告
+---
 
 ## 已完成
 
-### L3/L4 核心
+### GS 主链
 
-- 原始发包与 `pcap` 收包链路
-- 路由解析与主动 ARP
-- 目标迭代与随机化遍历
+- 原始发包与 `pcap` 收包
 - 主机探活
-- TCP SYN 扫描
-- TCP ACK 扫描
-- TCP Window 扫描
+- TCP SYN / ACK / Window
 - UDP 扫描
-- 回包张量判定
-- 结果流与终端输出
-
-### CLI 与任务调度
-
-- 统一的 CLI 入口
-- 多 profile 扫描任务生成
-- 默认端口 / `-F` / `--top-ports`
-- 不支持参数显式拒绝
-- 输出文件配置
-
-### L7 服务识别
-
-- Nmap 探针库内嵌
-- 探针解析与端口倒排索引
-- `sslports` / `fallback` 支持
-- `rarity` / `totalwaitms` 支持
-- TCP / UDP 区分调度
-- 分段响应累计读取
-- 结构化服务指纹输出
-
-### 输出与画像
-
+- 多 profile 任务生成
 - 实时事实流输出
-- JSON 画像导出
-- YAML 画像导出
-- `summary_state` 聚合
-- `facts` 保留
-- 指纹字段透传
+- JSON / YAML 画像导出
+- L7 服务识别与结构化指纹提取
 
 ### UAM / SQLite
 
-- `Run / Host / Endpoint / Observation / Claim / Projection / ModuleResult` 完整模型
+- `Run / Host / Endpoint / Observation / Claim / Projection / ModuleResult`
 - SQLite schema、索引、视图
 - GS Run 元数据写入
-- GS 主机探活写入
-- GS L4 Observation / Claim 写入
-- GS L7 enrichment 写入
+- GS L4 / L7 Observation 与 Claim 写入
 - Host / Endpoint 当前 Projection 刷新
-- `uam runs`
-- `uam hosts`
-- `uam endpoints`
-- `uam observations`
-- `uam report`
+- `uam runs / hosts / endpoints / observations / report`
 
-### gping / module 契约层
+### gping 第二阶段主线
 
-- gping Run / Observation / Claim 接口
-- `manual / override / verification_state` 契约准备
-- module Run / Observation / Claim / ModuleResult 接口
+- `goscan gping` 命令入口
+- 字面目标、URL、`--uam-endpoint`、UAM 条件筛选选目标
+- `gping templates`
+- `gping candidates`
+- `gping preview`
+- `gping history`
+- 结果写回 UAM
+- `manual / override / verification_state` 契约落地
+- `extra_json` 证据落库与历史回看
+- `DSL v1` 兼容骨架
+- `app adapter v1`
+- `extract / recommend` 接缝
+
+### gping 当前支持的方法
+
+- `raw`
+  - `tcp-syn`
+  - `tcp-raw`
+  - `icmp-echo-raw`
+  - `icmp-raw`
+- `stack`
+  - `tcp-connect`
+  - `banner-read`
+  - `tls-handshake`
+- `app`
+  - HTTP: `http-head / http-get / http-post`
+  - DNS: `dns-query`
+  - FTP: `ftp-banner / ftp-feat / ftp-auth-tls`
+  - SMTP: `smtp-banner / smtp-ehlo / smtp-starttls`
+  - Redis: `redis-ping / redis-info-server / redis-info-replication`
+  - SSH: `ssh-banner / ssh-kexinit / ssh-hostkey`
+  - MySQL: `mysql-greeting / mysql-capabilities / mysql-starttls`
+
+### gping 当前模板体系
+
+- 内置模板加载
+- 外部 YAML 模板加载
+- `workflow` 与旧 `actions` 兼容
+- `vars`
+- `params`
+- `when`
+- `continue_on_error`
+- `extract`
+- `recommend`
+- `suggest`
+
+### gping 当前 raw 自由注入能力
+
+- `TTL / TOS / IP ID / DF`
+- `source port`
+- `TCP flags / seq / ack / window`
+- `ICMP type / code / id / seq`
+- 文本 payload 与十六进制 payload
+- 故意坏校验和
+- raw 动作级重试
 
 ### 测试
 
-- CLI 参数与 profile 测试
-- L4 路径测试
-- ICMP / UDP / TCP 张量测试
-- 任务生成测试
-- L7 调度与识别测试
-- 画像聚合与文件输出测试
-- GS -> UAM ingest 测试
-- gping / module 契约测试
-- UAM 查询与综合报告测试
+- GS 核心路径测试
+- L7 服务识别测试
+- UAM ingest / query / report 测试
+- gping 目标解析测试
+- gping 模板规划测试
+- gping raw / stack / app 执行测试
+- gping adapter 协议桩测试
+- gping UAM 写回测试
+- gping history / preview / candidate 测试
 
-## 当前支持的扫描方式
+---
 
-- `tcp-syn`
-- `tcp-ack`
-- `tcp-window`
-- `udp`
+## 当前支持的用户入口
 
-默认端口扫描方式为 `tcp-syn`。
+### GS
 
-L7 当前只消费：
+- `goscan scan ...`
 
-- `tcp-syn open`
-- `udp open`
+### UAM
 
-## 当前支持的输出
+- `goscan uam runs`
+- `goscan uam hosts`
+- `goscan uam endpoints`
+- `goscan uam observations`
+- `goscan uam report`
 
-### 扫描输出
+### gping
 
-- 终端实时结果
-- `json`
-- `yaml`
+- `goscan gping`
+- `goscan gping templates`
+- `goscan gping candidates`
+- `goscan gping preview`
+- `goscan gping history`
 
-### UAM 输出
+---
 
-- SQLite 资产状态库
-- JSON 查询结果
-- 文本综合报告
+## 当前仍然刻意未做
 
-## 当前明确已接入
+- 重型协议适配器
+- 深交互式协议解析器
+- FTP 数据通道与目录行为
+- SSH 会话与命令执行
+- MySQL / Redis / SMTP 认证后深交互
+- UDP raw 路线
+- 多包序列化 raw 实验
+- 更复杂的 UAM 查询 DSL
 
-- UAM 正式持久化
-- GS 全链路主要事实进入 UAM
-- UAM 查询入口
-- UAM 综合报告
-
-## 当前明确未接入
-
-- `connect`
-- `osscan`
-- `protocol`
-- `idle scan`
-- `spoof-ip`
-- `source-port`
-- `fragment`
-- `badsum`
-- `data-length`
-- `decoys`
-- `defeat-rst-ratelimit`
-- gping 执行器本体
-- 深层 HTTP / FTP / DB 扫描引擎
-- 专项扫描生产者
+---
 
 ## 当前边界
 
-当前阶段已经可以稳定承担：
+当前 `gping` 更合适的理解是：
+
+- 一个已经可用的定向确认器
+- 一个已经能回写 UAM 的人工增强工具
+- 一个已经具备轻量协议 adapter 和常见 raw 注入能力的多路线探测器
+
+但它还不是：
+
+- 通用深度协议扫描框架
+- 所有协议都已模板化的万能确认系统
+- 专项扫描器的替代品
+
+更合适的边界仍然是：
+
+- 轻量、确认级、低副作用动作继续进入 `gping`
+- 复杂、重交互、强业务语义能力进入后续专项解析器或 module
+
+---
+
+## 当前阶段结论
+
+截至 2026-04-15，Going_Scan 当前已经可以稳定承担：
 
 1. 高速发现
 2. 服务识别
 3. 结构化画像
-4. 资产状态沉淀
-5. 面向用户的 UAM 查询
+4. 统一资产状态沉淀
+5. 面向资产的定向确认
+6. 面向单目标的常见 raw 参数化实验
 
-但还不是完整的纵深验证平台。
+因此这一阶段的重点已经从“把骨架搭出来”转成：
 
-当前还需要继续推进的部分：
-
-1. 更强的 UAM 查询与筛选体验
-2. gping 执行器本体
-3. 专项扫描生产者
-4. 更完整的人工确认工作流
-5. 更强的持久化吞吐优化
-
-## 下一阶段建议方向
-
-推荐下一阶段按下面顺序推进：
-
-1. 继续增强 UAM 查询与资产查看体验
-2. 落地 gping 的最小可用执行器
-3. 让 gping 真正写入 `manual / override / pending`
-4. 选择一个专项方向先接入 `module_results`
-
-这样可以让“高速发现 -> 状态沉淀 -> 定向确认 -> 专项深扫”开始真正闭环。
+> 在保持边界清晰的前提下，围绕现有 GS / UAM / gping 主链做语义打磨、协议一致性收口与实验能力增强。

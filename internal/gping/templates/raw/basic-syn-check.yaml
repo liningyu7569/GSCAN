@@ -1,0 +1,10 @@
+kind: gping.template/v1
+name: raw/basic-syn-check
+description: Send a single raw TCP SYN probe to validate an endpoint state
+applies_to:
+  protocol: tcp
+workflow:
+  - id: syn
+    name: tcp-syn
+    route: raw
+    method: tcp-syn

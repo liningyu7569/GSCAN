@@ -1,0 +1,35 @@
+kind: gping.template/v1
+name: uam/redis-enrich
+description: Enrich a UAM Redis endpoint with PING and INFO evidence
+applies_to:
+  protocol: tcp
+  current_service: [redis]
+workflow:
+  - id: ping
+    route: app
+    adapter: redis
+    method: redis-ping
+  - id: info_server
+    route: app
+    adapter: redis
+    method: redis-info-server
+    continue_on_error: true
+  - id: info_replication
+    route: app
+    adapter: redis
+    method: redis-info-replication
+    continue_on_error: true
+extract:
+  - from: info_server
+    field: info_accessible
+    to_claim: redis.info_accessible
+  - from: info_replication
+    field: info_replication_accessible
+    to_claim: redis.replication_info_accessible
+suggest:
+  verification_state: pending
+recommend:
+  when_all:
+    - ping.raw_status == "PONG"
+  then:
+    verification_state: pending

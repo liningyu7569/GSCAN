@@ -1,5 +1,102 @@
 # Going_Scan V2 更新日志
 
+**日期**: 2026-04-14  
+**核心更新**: gping 第一阶段完成收口，形成“候选目标 -> 预览 -> 执行 -> UAM 回写 -> 历史回看”的最小闭环
+
+## 本次完成的核心内容
+
+这一轮的重点不再是继续扩 GS 主扫描逻辑，而是把 gping 真正落成一个围绕 UAM 做人工确认的工具，并把当前边界写清楚。
+
+### 1. gping 第一阶段主链已经完成
+
+当前已经正式落地：
+
+- `goscan gping`
+- `gping templates`
+- `gping candidates`
+- `gping preview`
+- `gping history`
+
+也就是说，当前用户已经可以：
+
+1. 从 UAM 里选候选目标
+2. 查看建议模板
+3. 预览实际执行计划
+4. 执行动作链
+5. 把 Observation / Claim / Projection 写回 UAM
+6. 再从 UAM 回看 gping 历史
+
+### 2. gping 三路线 MVP 已经形成
+
+当前方法集合如下：
+
+- raw
+  - `tcp-syn`
+  - `icmp-echo-raw`
+- stack
+  - `tcp-connect`
+  - `banner-read`
+  - `tls-handshake`
+- app
+  - `http-head`
+  - `http-get`
+  - `http-post`
+
+这里面最关键的不是数量，而是已经覆盖了：
+
+- 低层可达性验证
+- 连接级确认
+- TLS 结构化确认
+- HTTP 请求级确认
+- 轻量 banner 确认
+
+### 3. 模板体系已经进入“可用”状态
+
+当前模板已支持：
+
+- 内置模板
+- 外部 YAML 模板
+- 变量展开
+- 建议字段 `suggest`
+- 动作级参数：
+  - `url`
+  - `host_header`
+  - `sni`
+  - `path`
+  - `body`
+  - `payload`
+  - `read_bytes`
+  - `headers`
+  - `insecure_skip_verify`
+
+HTTP/HTTPS 这条线现在已经能比较稳定地完成常见确认流，包括 header、path、query、body 等注入位。
+
+### 4. 当前边界也已经更清楚了
+
+这一轮同时确认了一个很重要的方向：
+
+- gping 应该继续吸收轻量、确认级、容易抽象的动作
+- 复杂、重交互、强协议语义的能力不应强行塞进模板层
+- 如果某类协议需要越来越厚的适配器和解析器，更适合进入后续专项扫描器或 module
+
+因此当前 gping 第一阶段的收口标准不是“覆盖所有协议模板”，而是：
+
+> 把围绕现有资产的人工确认闭环做稳，并把模板体系与专项解析器的边界划清。
+
+## 当前阶段结论
+
+截至 2026-04-14，gping 已经从“只有 UAM 契约接口”进入到“真正可执行、可回写、可回看的工具”阶段。
+
+这意味着 Going_Scan 当前正式形成了：
+
+1. GS：高速发现
+2. UAM：状态沉淀
+3. gping：定向确认
+
+后续阶段更适合围绕测试、真实使用和协议边界讨论来决定下一批 action / adapter / module 的归属，而不是继续盲目扩张。
+
+---
+
 **日期**: 2026-04-12  
 **核心更新**: UAM SQLite 契约层正式落地，GS 全链路主要事实开始进入统一资产状态系统
 

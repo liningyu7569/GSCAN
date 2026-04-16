@@ -1,0 +1,52 @@
+kind: gping.template/v1
+name: uam/https-enrich
+description: Enrich a UAM HTTPS endpoint with TCP, TLS, and basic HTTP context
+applies_to:
+  protocol: tcp
+  ports: [443, 8443]
+  current_service: [https]
+vars:
+  path:
+    default: /
+  health_path:
+    default: /health
+workflow:
+  - id: connect
+    name: tcp-connect
+    route: stack
+    method: tcp-connect
+  - id: tls
+    name: tls-handshake
+    route: stack
+    method: tls-handshake
+    params:
+      sni: ${sni}
+      insecure_skip_verify: true
+  - id: head_root
+    name: http-head
+    route: app
+    adapter: http
+    method: http-head
+    params:
+      url: ${scheme}://${host}${path}
+      host_header: ${host}
+      sni: ${sni}
+      insecure_skip_verify: true
+  - id: get_health
+    name: http-get-health
+    route: app
+    adapter: http
+    method: http-get
+    params:
+      url: ${scheme}://${host}${health_path}
+      host_header: ${host}
+      sni: ${sni}
+      insecure_skip_verify: true
+suggest:
+  verification_state: pending
+recommend:
+  when_all:
+    - tls.raw_status == "success"
+    - head_root.raw_status != "error"
+  then:
+    verification_state: pending

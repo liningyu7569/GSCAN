@@ -28,6 +28,7 @@ type GPingObservationInput struct {
 	ResponseSummary string
 	RTTMs           *float64
 	ErrorText       string
+	ExtraJSON       string
 	Claims          []normalize.GPingClaimInput
 }
 
@@ -96,6 +97,7 @@ func (g *GPingIngester) IngestObservation(ctx context.Context, input GPingObserv
 		RTTMs:           input.RTTMs,
 		ErrorText:       input.ErrorText,
 		ObservedAt:      now,
+		ExtraJSON:       input.ExtraJSON,
 	}
 	if observation.ActionType == "" {
 		observation.ActionType = domain.ActionProbe

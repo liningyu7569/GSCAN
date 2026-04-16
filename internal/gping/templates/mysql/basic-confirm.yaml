@@ -1,0 +1,25 @@
+kind: gping.template/v1
+name: mysql/basic-confirm
+description: Confirm whether an endpoint behaves like a MySQL service by reading the greeting handshake
+applies_to:
+  protocol: tcp
+  current_service: [mysql]
+workflow:
+  - id: greeting
+    route: app
+    adapter: mysql
+    method: mysql-greeting
+extract:
+  - from: greeting
+    field: server_flavor_hint
+    to_claim: mysql.server_flavor
+  - from: greeting
+    field: capabilities
+    to_claim: mysql.capabilities
+suggest:
+  verification_state: pending
+recommend:
+  when_all:
+    - greeting.raw_status == "success"
+  then:
+    verification_state: pending

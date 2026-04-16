@@ -1,0 +1,34 @@
+kind: gping.template/v1
+name: uam/ssh-enrich
+description: Enrich a UAM SSH endpoint with banner, KEXINIT, and host key evidence
+applies_to:
+  protocol: tcp
+  current_service: [ssh]
+workflow:
+  - id: banner
+    route: app
+    adapter: ssh
+    method: ssh-banner
+  - id: kexinit
+    route: app
+    adapter: ssh
+    method: ssh-kexinit
+    when: banner.raw_status == "success"
+    continue_on_error: true
+  - id: hostkey
+    route: app
+    adapter: ssh
+    method: ssh-hostkey
+    when: banner.raw_status == "success"
+    continue_on_error: true
+extract:
+  - from: kexinit
+    field: ciphers
+    to_claim: ssh.ciphers
+suggest:
+  verification_state: pending
+recommend:
+  when_all:
+    - banner.raw_status == "success"
+  then:
+    verification_state: pending
