@@ -47,8 +47,9 @@ type HostPortrait struct {
 }
 
 type PortraitReport struct {
-	Metadata PortraitMetadata `json:"metadata" yaml:"metadata"`
-	Hosts    []HostPortrait   `json:"hosts" yaml:"hosts"`
+	Metadata    PortraitMetadata    `json:"metadata" yaml:"metadata"`
+	Performance PortraitPerformance `json:"performance" yaml:"performance"`
+	Hosts       []HostPortrait      `json:"hosts" yaml:"hosts"`
 }
 
 type PortraitMetadata struct {
@@ -135,15 +136,28 @@ func (a *PortraitAggregator) Add(result ScanResult) {
 
 func (a *PortraitAggregator) Build(metadata RunMetadata, generatedAt time.Time) PortraitReport {
 	hostsMap := make(map[string][]PortPortrait)
+	stats := portraitAggregationStats{
+		FactsByState:    make(map[string]int64),
+		FactsByMethod:   make(map[string]int64),
+		PortsByProtocol: make(map[string]int64),
+	}
 	for _, entry := range a.entries {
 		facts := make([]ScanFact, 0, len(entry.Facts))
 		for _, fact := range entry.Facts {
 			facts = append(facts, fact)
+			stats.FactsTotal++
+			stats.FactsByState[fact.State]++
+			stats.FactsByMethod[fact.Method]++
 		}
 		sort.Slice(facts, func(i, j int) bool {
 			return methodOrder(facts[i].Method) < methodOrder(facts[j].Method)
 		})
 
+		stats.PortsByProtocol[entry.Protocol]++
+		stats.PortsWithFindings++
+		if entry.Service != "" && entry.Service != "unknown" && entry.Service != "unreachable" {
+			stats.ServicesIdentified++
+		}
 		hostsMap[entry.IP] = append(hostsMap[entry.IP], PortPortrait{
 			Port:         entry.Port,
 			Protocol:     entry.Protocol,
@@ -181,6 +195,7 @@ func (a *PortraitAggregator) Build(metadata RunMetadata, generatedAt time.Time) 
 			Ports: ports,
 		})
 	}
+	stats.HostsWithFindings = int64(len(hosts))
 
 	return PortraitReport{
 		Metadata: PortraitMetadata{
@@ -192,7 +207,8 @@ func (a *PortraitAggregator) Build(metadata RunMetadata, generatedAt time.Time) 
 			OutputFormat:  metadata.OutputFormat,
 			GeneratedAt:   generatedAt.Format(time.RFC3339),
 		},
-		Hosts: hosts,
+		Performance: buildPortraitPerformance(metadata, generatedAt, stats),
+		Hosts:       hosts,
 	}
 }
 

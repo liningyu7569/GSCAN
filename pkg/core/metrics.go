@@ -18,6 +18,7 @@ type ScanMetrics struct {
 	DispatchDrops  int64 // 因通道已满而被丢弃的匹配回包
 	OpenPorts      int64 // 发现的开放端口数量
 	Filtered       int64 // 超时/被过滤的数量
+	AliveHosts     int64 // 首次确认存活的主机数量
 
 	StartTime time.Time
 }
@@ -59,11 +60,14 @@ func StartMonitor(ctx context.Context) {
 }
 
 func printProgress() {
+	syncGlobalMetrics()
 	done := atomic.LoadInt64(&GlobalMetrics.TasksDone)
 	total := atomic.LoadInt64(&GlobalMetrics.TotalTasks)
 	sent := atomic.LoadInt64(&GlobalMetrics.PacketsSent)
 	matched := atomic.LoadInt64(&GlobalMetrics.PacketsMatched)
 	open := atomic.LoadInt64(&GlobalMetrics.OpenPorts)
+	alive := atomic.LoadInt64(&GlobalMetrics.AliveHosts)
+	filtered := atomic.LoadInt64(&GlobalMetrics.Filtered)
 
 	elapsed := time.Since(GlobalMetrics.StartTime).Seconds()
 	if elapsed == 0 {
@@ -76,16 +80,19 @@ func printProgress() {
 		percent = float64(done) / float64(total) * 100
 	}
 
-	fmt.Printf("[Stats] %.2fs elapsed | %.2f%% done | %d Open | %d Sent | %d Matched | %.0f pps\n",
-		elapsed, percent, open, sent, matched, pps)
+	fmt.Printf("[Stats] %.2fs elapsed | %.2f%% done | %d Alive | %d Open | %d Filtered | %d Sent | %d Matched | %.0f pps\n",
+		elapsed, percent, alive, open, filtered, sent, matched, pps)
 }
 
 func printSummary() {
+	syncGlobalMetrics()
 	elapsed := time.Since(GlobalMetrics.StartTime)
 	open := atomic.LoadInt64(&GlobalMetrics.OpenPorts)
 	sent := atomic.LoadInt64(&GlobalMetrics.PacketsSent)
 	matched := atomic.LoadInt64(&GlobalMetrics.PacketsMatched)
 	dispatchDrops := atomic.LoadInt64(&GlobalMetrics.DispatchDrops)
+	alive := atomic.LoadInt64(&GlobalMetrics.AliveHosts)
+	filtered := atomic.LoadInt64(&GlobalMetrics.Filtered)
 	seconds := elapsed.Seconds()
 	if seconds == 0 {
 		seconds = 1
@@ -96,9 +103,21 @@ func printSummary() {
 	fmt.Printf("Total Packets Sent: %d\n", sent)
 	fmt.Printf("Matched Replies: %d\n", matched)
 	fmt.Printf("Dispatcher Drops: %d\n", dispatchDrops)
+	fmt.Printf("Alive Hosts Found: %d\n", alive)
 	fmt.Printf("Open Ports Found: %d\n", open)
+	fmt.Printf("Filtered Tasks: %d\n", filtered)
 	fmt.Printf("Average Speed: %.0f pps\n", float64(sent)/seconds)
 	fmt.Printf("===================================================\n")
+}
+
+func syncGlobalMetrics() {
+	atomic.StoreInt64(&GlobalMetrics.PacketsSent, MetricPacketsSent.Read())
+	atomic.StoreInt64(&GlobalMetrics.PacketsMatched, MetricPacketsMatch.Read())
+	atomic.StoreInt64(&GlobalMetrics.DispatchDrops, MetricDispatchDrops.Read())
+	atomic.StoreInt64(&GlobalMetrics.Filtered, MetricFiltered.Read())
+	atomic.StoreInt64(&GlobalMetrics.OpenPorts, MetricOpenPorts.Read())
+	atomic.StoreInt64(&GlobalMetrics.TasksDone, MetricTasksDone.Read())
+	atomic.StoreInt64(&GlobalMetrics.AliveHosts, MetricAliveHosts.Read())
 }
 
 // PersistDone 关键同步锁：主进程 (main) 需阻塞监听此通道，确认所有日志打印完毕后方可退出
@@ -120,11 +139,10 @@ func protocolToStr(p uint8) string {
 
 // RunResultPersister 持久化大管家：专职负责战果的终端回显与多路落盘
 func RunResultPersister() {
-	var aggregator *PortraitAggregator
+	aggregator := NewPortraitAggregator()
 
 	// 1. 最终画像文件输出初始化
 	if conf.GlobalOps.IsOutputFile && conf.GlobalOps.OutputFile != "" {
-		aggregator = NewPortraitAggregator()
 		fmt.Printf("[+] 扫描完成后将输出聚合画像至: %s\n", conf.GlobalOps.OutputFile)
 	}
 
@@ -169,9 +187,7 @@ func RunResultPersister() {
 				ColorBlue+bannerStr+ColorReset)
 		}
 
-		if aggregator != nil {
-			aggregator.Add(result)
-		}
+		aggregator.Add(result)
 
 		// ----------------------------------------------------
 		// 磁盘持久化：SQLite (钩子调用)
@@ -179,8 +195,8 @@ func RunResultPersister() {
 		saveToSQLiteHook(result, protoStr)
 	}
 
-	if aggregator != nil {
-		report := aggregator.Build(GetRunMetadata(), time.Now())
+	report := aggregator.Build(GetRunMetadata(), time.Now())
+	if conf.GlobalOps.IsOutputFile && conf.GlobalOps.OutputFile != "" {
 		if err := WritePortraitReport(conf.GlobalOps.OutputFile, conf.GlobalOps.OutputFormat, report); err != nil {
 			fmt.Printf("[!] 无法写入聚合画像文件: %v\n", err)
 		}
@@ -189,6 +205,7 @@ func RunResultPersister() {
 	closeSQLiteHook()
 
 	fmt.Println("============================")
+	fmt.Print(renderPortraitPerformanceSummary(report.Performance))
 	fmt.Println("[Persister] 终端回显完毕，所有持久化落盘队列已清空，安全退出。")
 
 	// 敲响最后一记下班铃声！允许 main 函数彻底退出。

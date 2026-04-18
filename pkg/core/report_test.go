@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -129,6 +130,25 @@ func TestWritePortraitReportSupportsJSONAndYAML(t *testing.T) {
 			OutputFormat:  "json",
 			GeneratedAt:   "2026-04-11T00:00:00Z",
 		},
+		Performance: PortraitPerformance{
+			Runtime: PortraitRuntime{
+				StartedAt:      "2026-04-11T00:00:00Z",
+				FinishedAt:     "2026-04-11T00:00:02Z",
+				ElapsedSeconds: 2,
+				ElapsedHuman:   "2s",
+			},
+			Counters: PortraitCounters{
+				PlannedTasks:   10,
+				CompletedTasks: 10,
+				PacketsSent:    20,
+				AliveHosts:     1,
+				OpenPorts:      1,
+			},
+			Rates: PortraitRates{
+				AveragePPS:        10,
+				CompletionPercent: 100,
+			},
+		},
 		Hosts: []HostPortrait{{
 			IP: "127.0.0.1",
 			Ports: []PortPortrait{{
@@ -155,6 +175,9 @@ func TestWritePortraitReportSupportsJSONAndYAML(t *testing.T) {
 	if !strings.Contains(string(jsonData), "\"summary_state\": \"open\"") {
 		t.Fatalf("unexpected json output: %s", string(jsonData))
 	}
+	if !strings.Contains(string(jsonData), "\"performance\"") || !strings.Contains(string(jsonData), "\"alive_hosts\": 1") {
+		t.Fatalf("expected performance metrics in json output: %s", string(jsonData))
+	}
 
 	yamlPath := filepath.Join(dir, "report.yaml")
 	report.Metadata.OutputFormat = "yaml"
@@ -167,5 +190,88 @@ func TestWritePortraitReportSupportsJSONAndYAML(t *testing.T) {
 	}
 	if !strings.Contains(string(yamlData), "summary_state: open") {
 		t.Fatalf("unexpected yaml output: %s", string(yamlData))
+	}
+	if !strings.Contains(string(yamlData), "performance:") || !strings.Contains(string(yamlData), "alive_hosts: 1") {
+		t.Fatalf("expected performance metrics in yaml output: %s", string(yamlData))
+	}
+}
+
+func TestPortraitAggregatorBuildIncludesPerformanceMetrics(t *testing.T) {
+	savedMetrics := GlobalMetrics
+	savedFinal := loadFinalEngineStats()
+	defer func() {
+		GlobalMetrics = savedMetrics
+		storeFinalEngineStats(savedFinal)
+	}()
+
+	GlobalMetrics = &ScanMetrics{StartTime: time.Unix(0, 0)}
+	atomic.StoreInt64(&GlobalMetrics.TotalTasks, 20)
+	atomic.StoreInt64(&GlobalMetrics.TasksDone, 20)
+	atomic.StoreInt64(&GlobalMetrics.PacketsSent, 40)
+	atomic.StoreInt64(&GlobalMetrics.PacketsMatched, 25)
+	atomic.StoreInt64(&GlobalMetrics.DispatchDrops, 2)
+	atomic.StoreInt64(&GlobalMetrics.Filtered, 5)
+	atomic.StoreInt64(&GlobalMetrics.OpenPorts, 2)
+	atomic.StoreInt64(&GlobalMetrics.AliveHosts, 1)
+	storeFinalEngineStats(finalEngineStats{
+		EffectiveSendRatePPS: 3000,
+		SmoothedRTOMS:        180,
+		PacketsReceived:      88,
+		PacketsDropped:       3,
+		PacketsIfDropped:     1,
+	})
+
+	aggregator := NewPortraitAggregator()
+	aggregator.Add(ScanResult{
+		IPStr:    "192.168.1.10",
+		Port:     80,
+		Protocol: syscall.IPPROTO_TCP,
+		Method:   "tcp-syn",
+		State:    "open",
+		Service:  "http",
+	})
+	aggregator.Add(ScanResult{
+		IPStr:    "192.168.1.10",
+		Port:     443,
+		Protocol: syscall.IPPROTO_TCP,
+		Method:   "tcp-syn",
+		State:    "open",
+		Service:  "https",
+	})
+	aggregator.Add(ScanResult{
+		IPStr:    "192.168.1.10",
+		Port:     443,
+		Protocol: syscall.IPPROTO_TCP,
+		Method:   "tcp-window",
+		State:    "open",
+	})
+
+	report := aggregator.Build(RunMetadata{
+		Command:     "goscan scan 192.168.1.10 -p 80,443 --syn -V",
+		Targets:     []string{"192.168.1.10"},
+		Ports:       []int{80, 443},
+		Profiles:    []string{"tcp-syn"},
+		ServiceScan: true,
+		Tuning: RunTuning{
+			TimingLevel:     3,
+			MaxRetries:      1,
+			MaxRTTTimeoutMS: 1000,
+		},
+	}, time.Unix(2, 0))
+
+	if report.Performance.Counters.AliveHosts != 1 || report.Performance.Counters.OpenPorts != 2 {
+		t.Fatalf("unexpected performance counters: %+v", report.Performance.Counters)
+	}
+	if report.Performance.Counters.ServicesIdentified != 2 {
+		t.Fatalf("unexpected services identified count: %+v", report.Performance.Counters)
+	}
+	if report.Performance.Findings.FactsByMethod["tcp-syn"] != 2 || report.Performance.Findings.FactsByMethod["tcp-window"] != 1 {
+		t.Fatalf("unexpected facts by method: %+v", report.Performance.Findings.FactsByMethod)
+	}
+	if report.Performance.Pcap == nil || report.Performance.Pcap.PacketsReceived != 88 {
+		t.Fatalf("unexpected pcap stats: %+v", report.Performance.Pcap)
+	}
+	if report.Performance.Rates.AveragePPS <= 0 || report.Performance.Runtime.SmoothedRTOMS != 180 {
+		t.Fatalf("unexpected runtime/rates: %+v %+v", report.Performance.Runtime, report.Performance.Rates)
 	}
 }

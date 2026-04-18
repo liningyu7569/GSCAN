@@ -53,6 +53,7 @@ func markAlive(ip uint32) bool {
 		return false // 已经标记过存活，去重
 	}
 	shard.m[ip] = struct{}{}
+	MetricAliveHosts.Add(uint64(ip), 1)
 	return true // 首次发现存活
 }
 

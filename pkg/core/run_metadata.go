@@ -8,6 +8,7 @@ type RunMetadata struct {
 	ServiceScan  bool
 	OutputFile   string
 	OutputFormat string
+	Tuning       RunTuning
 }
 
 var currentRunMetadata RunMetadata

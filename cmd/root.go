@@ -124,6 +124,21 @@ func runScan(cmd *cobra.Command, args []string) error {
 		ServiceScan:  conf.GlobalOps.Servicescan,
 		OutputFile:   conf.GlobalOps.OutputFile,
 		OutputFormat: conf.GlobalOps.OutputFormat,
+		Tuning: core.RunTuning{
+			TimingLevel:          conf.GlobalOps.TimingLevel,
+			MinPacketSendRatePPS: conf.GlobalOps.MinPacketSendRate,
+			MaxPacketSendRatePPS: conf.GlobalOps.MaxPacketSendRate,
+			MinParallelism:       conf.GlobalOps.MinParallelism,
+			MaxParallelism:       conf.GlobalOps.MaxParallelism,
+			MaxRetries:           conf.GlobalOps.MaxRetries,
+			MaxRTTTimeoutMS:      conf.GlobalOps.MaxRTTTimeout,
+			HostTimeoutMS:        conf.GlobalOps.HostTimeout,
+			RandomizeHosts:       conf.GlobalOps.RandomizeHosts,
+			TTL:                  conf.GlobalOps.TTL,
+			Fragment:             conf.GlobalOps.FragScan,
+			BadChecksum:          conf.GlobalOps.BadSum,
+			SourcePort:           conf.GlobalOps.SourcePort,
+		},
 	})
 
 	if err := routing.InitRouter(); err != nil {
@@ -173,7 +188,11 @@ func runScan(cmd *cobra.Command, args []string) error {
 
 	totalTasks := estimateTotalTasks(ipIterator.Count(), len(ports), len(scanProfiles))
 	core.InitMetrics(totalTasks)
+	monitorCtx, stopMonitor := context.WithCancel(context.Background())
+	defer stopMonitor()
+	go core.StartMonitor(monitorCtx)
 	engine.Run(ctx, generator)
+	stopMonitor()
 	<-core.PersistDone
 
 	fmt.Println("[*] 完美收工！")

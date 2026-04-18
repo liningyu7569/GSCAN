@@ -40,6 +40,7 @@ var (
 	MetricDispatchDrops metrics.ShardedMetrics
 	MetricFiltered      metrics.ShardedMetrics
 	MetricOpenPorts     metrics.ShardedMetrics
+	MetricAliveHosts    metrics.ShardedMetrics
 	MetricTasksDone     metrics.ShardedMetrics
 )
 
@@ -75,7 +76,9 @@ func NewEngine(handle *pcap.Handle) *Engine {
 	MetricDispatchDrops = metrics.ShardedMetrics{}
 	MetricFiltered = metrics.ShardedMetrics{}
 	MetricOpenPorts = metrics.ShardedMetrics{}
+	MetricAliveHosts = metrics.ShardedMetrics{}
 	MetricTasksDone = metrics.ShardedMetrics{}
+	resetFinalEngineStats()
 
 	e := &Engine{
 		Targets:         make([]uint64, MaxCWNDLimit),
@@ -104,13 +107,7 @@ func NewEngine(handle *pcap.Handle) *Engine {
 	go func() {
 		ticker := time.NewTicker(200 * time.Millisecond)
 		for range ticker.C {
-			// 将分片缓存行的数据聚合，覆写至旧版 GlobalMetrics
-			atomic.StoreInt64(&GlobalMetrics.PacketsSent, MetricPacketsSent.Read())
-			atomic.StoreInt64(&GlobalMetrics.PacketsMatched, MetricPacketsMatch.Read())
-			atomic.StoreInt64(&GlobalMetrics.DispatchDrops, MetricDispatchDrops.Read())
-			atomic.StoreInt64(&GlobalMetrics.Filtered, MetricFiltered.Read())
-			atomic.StoreInt64(&GlobalMetrics.OpenPorts, MetricOpenPorts.Read())
-			atomic.StoreInt64(&GlobalMetrics.TasksDone, MetricTasksDone.Read())
+			syncGlobalMetrics()
 		}
 	}()
 	return e
@@ -197,6 +194,7 @@ Loop:
 
 	atomic.StoreInt32(&e.l4Finished, 1)
 	fmt.Println("[Engine] 所有探测任务已安全结束。")
+	storeFinalEngineStats(e.performanceSnapshot())
 	//e.printReport()
 }
 
@@ -679,6 +677,21 @@ func (e *Engine) printReport() {
 			stats.PacketsReceived, stats.PacketsDropped, stats.PacketsIfDropped)
 	}
 	fmt.Printf("===================================================\n")
+}
+
+func (e *Engine) performanceSnapshot() finalEngineStats {
+	snapshot := finalEngineStats{
+		EffectiveSendRatePPS: e.sendRate,
+		SmoothedRTOMS:        atomic.LoadInt64(&e.rto),
+	}
+	if e.pcapHandle != nil {
+		if stats, err := e.pcapHandle.Stats(); err == nil && stats != nil {
+			snapshot.PacketsReceived = int64(stats.PacketsReceived)
+			snapshot.PacketsDropped = int64(stats.PacketsDropped)
+			snapshot.PacketsIfDropped = int64(stats.PacketsIfDropped)
+		}
+	}
+	return snapshot
 }
 
 // isL4Finished 供 L7 Dispatcher 查询 L4 是否已经彻底收工
