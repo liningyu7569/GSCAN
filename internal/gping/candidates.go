@@ -8,6 +8,7 @@ import (
 	"strings"
 )
 
+// ListCandidates 从 UAM 数据库中查询符合筛选条件的端点资产列表
 func ListCandidates(ctx context.Context, opts Options, limit int) ([]Candidate, error) {
 	if strings.TrimSpace(opts.UAMDBPath) == "" {
 		return nil, fmt.Errorf("--uam-db is required when listing gping candidates")

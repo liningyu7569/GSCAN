@@ -8,6 +8,7 @@ import (
 	"time"
 )
 
+// GPingRunMetadata gping运行元数据
 type GPingRunMetadata struct {
 	Command  string
 	Targets  []string
@@ -16,6 +17,7 @@ type GPingRunMetadata struct {
 	Extra    map[string]any
 }
 
+// GPingObservationInput gping单次探测的完整输入，含原始探测字段和Claim列表
 type GPingObservationInput struct {
 	IP              string
 	Protocol        string
@@ -32,10 +34,12 @@ type GPingObservationInput struct {
 	Claims          []normalize.GPingClaimInput
 }
 
+// GPingIngester gping探测结果接入器
 type GPingIngester struct {
 	*contractIngester
 }
 
+// NewGPingIngester 创建GPingIngester，初始化数据库并创建Run记录
 func NewGPingIngester(ctx context.Context, dbPath string, metadata GPingRunMetadata) (*GPingIngester, error) {
 	base, err := newContractIngester(ctx, dbPath, domain.ToolGPing, "gping", ContractRunMetadata{
 		Command:  metadata.Command,
@@ -51,6 +55,7 @@ func NewGPingIngester(ctx context.Context, dbPath string, metadata GPingRunMetad
 	return &GPingIngester{contractIngester: base}, nil
 }
 
+// IngestObservation 将单条gping探测结果写入Observation、Claim并刷新Projection
 func (g *GPingIngester) IngestObservation(ctx context.Context, input GPingObservationInput) error {
 	if g == nil || g.store == nil {
 		return nil

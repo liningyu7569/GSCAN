@@ -5,6 +5,7 @@ import (
 	"time"
 )
 
+// Options 汇集 gping 命令行参数与运行选项
 type Options struct {
 	Commandline string
 
@@ -55,6 +56,7 @@ type Options struct {
 	Timeout            time.Duration
 }
 
+// TargetContext 统一的目标上下文，存储解析后的 IP、端口、协议、URL 及 UAM 已有元数据
 type TargetContext struct {
 	IP                string `json:"ip"`
 	Port              int    `json:"port"`
@@ -74,6 +76,7 @@ type TargetContext struct {
 	VerificationState string `json:"verification_state,omitempty"`
 }
 
+// ActionUnit 单个探测动作，包含路由、方法、参数、条件及容错配置
 type ActionUnit struct {
 	Index              int               `json:"index"`
 	ID                 string            `json:"id,omitempty"`
@@ -96,6 +99,7 @@ type ActionUnit struct {
 	Timeout            time.Duration     `json:"timeout,omitempty"`
 }
 
+// ExecutionReport 单步执行报告，记录路由方法、原始状态、请求/响应摘要及推断的 UAM 断言
 type ExecutionReport struct {
 	IP              string                      `json:"ip"`
 	Protocol        string                      `json:"protocol"`
@@ -113,6 +117,7 @@ type ExecutionReport struct {
 	Claims          []normalize.GPingClaimInput `json:"claims,omitempty"`
 }
 
+// RunResult 单次 gping 运行的完整结果
 type RunResult struct {
 	Target          TargetContext     `json:"target"`
 	TemplateName    string            `json:"template_name,omitempty"`
@@ -122,6 +127,7 @@ type RunResult struct {
 	UAMRunID        string            `json:"uam_run_id,omitempty"`
 }
 
+// TemplateSpec 探测模板定义，描述适用条件、变量、动作流程、提取规则和建议
 type TemplateSpec struct {
 	Kind        string                `yaml:"kind" json:"kind,omitempty"`
 	Name        string                `yaml:"name" json:"name"`
@@ -135,6 +141,7 @@ type TemplateSpec struct {
 	Suggest     map[string]string     `yaml:"suggest" json:"suggest,omitempty"`
 }
 
+// TemplateActionSpec 模板中的单个动作定义，支持变量展开
 type TemplateActionSpec struct {
 	ID                 string            `yaml:"id" json:"id,omitempty"`
 	Name               string            `yaml:"name"`
@@ -155,6 +162,7 @@ type TemplateActionSpec struct {
 	InsecureSkipVerify bool              `yaml:"insecure_skip_verify"`
 }
 
+// TemplateSummary 模板摘要，用于列表展示
 type TemplateSummary struct {
 	Name        string   `json:"name"`
 	Description string   `json:"description"`
@@ -162,6 +170,7 @@ type TemplateSummary struct {
 	Routes      []string `json:"routes,omitempty"`
 }
 
+// Candidate 来自 UAM 的探测候选端点
 type Candidate struct {
 	EndpointID         string   `json:"endpoint_id"`
 	IP                 string   `json:"ip"`
@@ -177,6 +186,7 @@ type Candidate struct {
 	SuggestedTemplates []string `json:"suggested_templates,omitempty"`
 }
 
+// PreviewResult 探测预览结果，展示目标、动作和推荐信息
 type PreviewResult struct {
 	Target             TargetContext     `json:"target"`
 	TemplateName       string            `json:"template_name,omitempty"`
@@ -188,6 +198,7 @@ type PreviewResult struct {
 	WriteUAM           bool              `json:"write_uam"`
 }
 
+// routeEvidence 路由证据的内部表示，承载原始状态、响应详情、TLS 信息等
 type routeEvidence struct {
 	RawStatus       string
 	RequestSummary  string
@@ -211,6 +222,7 @@ type routeEvidence struct {
 	TLSVersion      string
 }
 
+// Recommendation 基于模板推断的操作建议（验证状态、服务覆写）
 type Recommendation struct {
 	VerificationState string `json:"verification_state,omitempty"`
 	OverrideService   string `json:"override_service_name,omitempty"`

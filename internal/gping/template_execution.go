@@ -8,6 +8,7 @@ import (
 	"strings"
 )
 
+// preparedRun 封装一次模板执行前的完整准备上下文
 type preparedRun struct {
 	Target             TargetContext
 	TemplateName       string
@@ -20,11 +21,13 @@ type preparedRun struct {
 	WriteUAM           bool
 }
 
+// stepResult 记录单个模板步骤的执行结果与证据
 type stepResult struct {
 	Action   ActionUnit
 	Evidence routeEvidence
 }
 
+// buildPreviewResult 将 preparedRun 转换为对外暴露的 PreviewResult
 func buildPreviewResult(prepared preparedRun) PreviewResult {
 	return PreviewResult{
 		Target:             prepared.Target,
@@ -38,6 +41,7 @@ func buildPreviewResult(prepared preparedRun) PreviewResult {
 	}
 }
 
+// shouldRunAction 根据 when 条件判断当前动作是否应该执行
 func shouldRunAction(action ActionUnit, results []stepResult) (bool, error) {
 	when := strings.TrimSpace(action.When)
 	if when == "" {
@@ -46,6 +50,7 @@ func shouldRunAction(action ActionUnit, results []stepResult) (bool, error) {
 	return evaluateCondition(when, results)
 }
 
+// evaluateCondition 计算 DSL 条件表达式（contains, ==, !=, exists）
 func evaluateCondition(expression string, results []stepResult) (bool, error) {
 	expression = strings.TrimSpace(expression)
 	if expression == "" {
@@ -128,6 +133,7 @@ func trimConditionLiteral(value string) string {
 	return value
 }
 
+// applyTemplateExtracts 根据模板的 extract 规则从步骤结果中提取声明
 func applyTemplateExtracts(target TargetContext, spec *TemplateSpec, results []stepResult, reports []ExecutionReport) error {
 	if spec == nil || len(spec.Extract) == 0 {
 		return nil
@@ -207,6 +213,7 @@ func buildExtractClaim(target TargetContext, rule TemplateExtractSpec, value any
 	return claim, nil
 }
 
+// buildTemplateRecommendations 根据模板 recommend 规则和步骤结果生成资产归类建议
 func buildTemplateRecommendations(spec *TemplateSpec, results []stepResult) ([]Recommendation, error) {
 	if spec == nil {
 		return nil, nil

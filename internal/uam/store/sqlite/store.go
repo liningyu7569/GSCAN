@@ -13,15 +13,18 @@ import (
 
 const timeLayout = time.RFC3339Nano
 
+// Store UAM的SQLite持久化存储，封装所有数据库操作
 type Store struct {
 	db *sql.DB
 }
 
+// claimMeta 从claim表抽取的投影元信息（断言模式与声明时间），用于ShouldApply优先级比较
 type claimMeta struct {
 	AssertionMode string
 	ClaimedAt     time.Time
 }
 
+// Open 打开SQLite数据库并设置WAL模式、外键等Pragma
 func Open(path string) (*Store, error) {
 	db, err := sql.Open("sqlite3", path)
 	if err != nil {
@@ -43,6 +46,7 @@ func Open(path string) (*Store, error) {
 	return &Store{db: db}, nil
 }
 
+// OpenExisting 打开已存在的 SQLite 数据库文件，若文件不存在则报错
 func OpenExisting(path string) (*Store, error) {
 	if _, err := os.Stat(path); err != nil {
 		return nil, err
@@ -50,6 +54,7 @@ func OpenExisting(path string) (*Store, error) {
 	return Open(path)
 }
 
+// Close 关闭数据库连接
 func (s *Store) Close() error {
 	if s == nil || s.db == nil {
 		return nil
@@ -57,6 +62,7 @@ func (s *Store) Close() error {
 	return s.db.Close()
 }
 
+// DB 返回底层 *sql.DB，供外部直接执行查询
 func (s *Store) DB() *sql.DB {
 	if s == nil {
 		return nil
@@ -64,31 +70,38 @@ func (s *Store) DB() *sql.DB {
 	return s.db
 }
 
+// BeginTx 开启一个数据库事务
 func (s *Store) BeginTx(ctx context.Context) (*sql.Tx, error) {
 	return s.db.BeginTx(ctx, nil)
 }
 
+// Migrate 执行schema SQL建表，幂等（使用CREATE IF NOT EXISTS）
 func (s *Store) Migrate(ctx context.Context) error {
 	_, err := s.db.ExecContext(ctx, schemaSQL)
 	return err
 }
 
+// NewRunID 生成新的Run ID
 func (s *Store) NewRunID() string {
 	return newID("run")
 }
 
+// NewObservationID 生成新的Observation ID
 func (s *Store) NewObservationID() string {
 	return newID("obs")
 }
 
+// NewClaimID 生成新的Claim ID
 func (s *Store) NewClaimID() string {
 	return newID("claim")
 }
 
+// NewModuleResultID 生成新的ModuleResult ID
 func (s *Store) NewModuleResultID() string {
 	return newID("module")
 }
 
+// CreateRun 向runs表插入一条运行记录
 func (s *Store) CreateRun(ctx context.Context, run domain.Run) error {
 	_, err := s.db.ExecContext(ctx, `
 INSERT INTO runs (
@@ -110,11 +123,13 @@ INSERT INTO runs (
 	return err
 }
 
+// FinishRun 更新run的结束时间，标记运行完成
 func (s *Store) FinishRun(ctx context.Context, runID string, finishedAt time.Time) error {
 	_, err := s.db.ExecContext(ctx, `UPDATE runs SET finished_at = ? WHERE run_id = ?`, formatTime(finishedAt), runID)
 	return err
 }
 
+// EnsureHost 确保host记录存在（按IP幂等），同时初始化host_projection_current
 func (s *Store) EnsureHost(ctx context.Context, tx *sql.Tx, host domain.Host) error {
 	_, err := tx.ExecContext(ctx, `
 INSERT INTO hosts (host_id, ip, first_seen_at, last_seen_at)
@@ -139,6 +154,7 @@ ON CONFLICT(host_id) DO NOTHING`,
 	return err
 }
 
+// EnsureEndpoint 确保endpoint记录存在（按host_id+protocol+port幂等），同时初始化endpoint_projection_current
 func (s *Store) EnsureEndpoint(ctx context.Context, tx *sql.Tx, endpoint domain.Endpoint) error {
 	_, err := tx.ExecContext(ctx, `
 INSERT INTO endpoints (endpoint_id, host_id, protocol, port, first_seen_at, last_seen_at)
@@ -165,6 +181,7 @@ ON CONFLICT(endpoint_id) DO NOTHING`,
 	return err
 }
 
+// InsertObservation 向observations表插入一条观察记录
 func (s *Store) InsertObservation(ctx context.Context, tx *sql.Tx, observation domain.Observation) error {
 	_, err := tx.ExecContext(ctx, `
 INSERT INTO observations (
@@ -192,6 +209,7 @@ INSERT INTO observations (
 	return err
 }
 
+// InsertClaims 批量向claims表插入断言记录
 func (s *Store) InsertClaims(ctx context.Context, tx *sql.Tx, claims []domain.Claim) error {
 	for _, claim := range claims {
 		if _, err := tx.ExecContext(ctx, `
@@ -217,6 +235,7 @@ INSERT INTO claims (
 	return nil
 }
 
+// InsertModuleResult 向module_results表插入一条模块产出记录
 func (s *Store) InsertModuleResult(ctx context.Context, tx *sql.Tx, result domain.ModuleResult) error {
 	_, err := tx.ExecContext(ctx, `
 INSERT INTO module_results (
@@ -236,6 +255,7 @@ INSERT INTO module_results (
 	return err
 }
 
+// LoadHostProjection 读取host_projection_current及关联的claim元信息，用于优先级比较
 func (s *Store) LoadHostProjection(ctx context.Context, tx *sql.Tx, hostID string) (domain.HostProjectionCurrent, *claimMeta, error) {
 	row := tx.QueryRowContext(ctx, `
 SELECT
@@ -292,6 +312,7 @@ WHERE hp.host_id = ?`, hostID)
 	return current, buildClaimMeta(assertion, claimedAt), nil
 }
 
+// SaveHostProjection 写入或更新host_projection_current记录
 func (s *Store) SaveHostProjection(ctx context.Context, tx *sql.Tx, current domain.HostProjectionCurrent) error {
 	_, err := tx.ExecContext(ctx, `
 INSERT INTO host_projection_current (
@@ -318,6 +339,7 @@ ON CONFLICT(host_id) DO UPDATE SET
 	return err
 }
 
+// LoadEndpointProjection 读取endpoint_projection_current及关联的claim元信息，用于优先级比较
 func (s *Store) LoadEndpointProjection(ctx context.Context, tx *sql.Tx, endpointID string) (domain.EndpointProjectionCurrent, *claimMeta, error) {
 	row := tx.QueryRowContext(ctx, `
 SELECT
@@ -410,6 +432,7 @@ WHERE ep.endpoint_id = ?`, endpointID)
 	return current, buildClaimMeta(assertion, claimedAt), nil
 }
 
+// SaveEndpointProjection 写入或更新endpoint_projection_current记录
 func (s *Store) SaveEndpointProjection(ctx context.Context, tx *sql.Tx, current domain.EndpointProjectionCurrent) error {
 	_, err := tx.ExecContext(ctx, `
 INSERT INTO endpoint_projection_current (
@@ -457,10 +480,12 @@ ON CONFLICT(endpoint_id) DO UPDATE SET
 	return err
 }
 
+// formatTime 将时间格式化为UTC RFC3339Nano字符串
 func formatTime(t time.Time) string {
 	return t.UTC().Format(timeLayout)
 }
 
+// formatTimePtr 将*time.Time格式化为字符串或nil
 func formatTimePtr(t *time.Time) any {
 	if t == nil {
 		return nil
@@ -468,6 +493,7 @@ func formatTimePtr(t *time.Time) any {
 	return formatTime(*t)
 }
 
+// timePtrValue 将*time.Time转为可写入SQL的值（字符串或nil）
 func timePtrValue(t *time.Time) any {
 	if t == nil {
 		return nil
@@ -475,6 +501,7 @@ func timePtrValue(t *time.Time) any {
 	return formatTime(*t)
 }
 
+// boolToInt 将bool转为int（SQLite存储用0/1）
 func boolToInt(v bool) int {
 	if v {
 		return 1
@@ -489,6 +516,7 @@ func emptyToNil(v string) any {
 	return v
 }
 
+// stringPtrValue 将*string转为可写入SQL的值，空字符串视为nil
 func stringPtrValue(v *string) any {
 	if v == nil || *v == "" {
 		return nil
@@ -496,6 +524,7 @@ func stringPtrValue(v *string) any {
 	return *v
 }
 
+// intPtrValue 将*int转为可写入SQL的值
 func intPtrValue(v *int) any {
 	if v == nil {
 		return nil
@@ -503,6 +532,7 @@ func intPtrValue(v *int) any {
 	return *v
 }
 
+// floatPtrValue 将*float64转为可写入SQL的值
 func floatPtrValue(v *float64) any {
 	if v == nil {
 		return nil
@@ -510,6 +540,7 @@ func floatPtrValue(v *float64) any {
 	return *v
 }
 
+// nullStringPtr 将sql.NullString转为*string
 func nullStringPtr(v sql.NullString) *string {
 	if !v.Valid {
 		return nil
@@ -518,6 +549,7 @@ func nullStringPtr(v sql.NullString) *string {
 	return &value
 }
 
+// nullIntPtr 将sql.NullInt64转为*int
 func nullIntPtr(v sql.NullInt64) *int {
 	if !v.Valid {
 		return nil
@@ -533,6 +565,7 @@ func nullStringDefault(v sql.NullString, fallback string) string {
 	return fallback
 }
 
+// nullTimePtr 将数据库时间字符串解析为*time.Time
 func nullTimePtr(v sql.NullString) *time.Time {
 	if !v.Valid || v.String == "" {
 		return nil
@@ -544,6 +577,7 @@ func nullTimePtr(v sql.NullString) *time.Time {
 	return &parsed
 }
 
+// buildClaimMeta 从数据库字段构建claimMeta结构体
 func buildClaimMeta(assertion sql.NullString, claimedAt sql.NullString) *claimMeta {
 	if !assertion.Valid || !claimedAt.Valid || claimedAt.String == "" {
 		return nil

@@ -11,10 +11,13 @@ import (
 	"time"
 )
 
+// smtpAdapter SMTP 协议适配器，支持 banner 读取、EHLO、STARTTLS
 type smtpAdapter struct{}
 
+// Name 返回适配器名称
 func (smtpAdapter) Name() string { return "smtp" }
 
+// Capabilities 返回 SMTP 适配器支持的能力
 func (smtpAdapter) Capabilities() AdapterCapabilities {
 	return AdapterCapabilities{
 		SupportsTLS:      true,
@@ -22,6 +25,7 @@ func (smtpAdapter) Capabilities() AdapterCapabilities {
 	}
 }
 
+// Execute 执行 SMTP 探测（banner/EHLO/STARTTLS）并返回结构化结果
 func (smtpAdapter) Execute(ctx context.Context, req AppRequest) (AppResult, error) {
 	switch normalizeMethod(req.Method) {
 	case "smtp-banner":
@@ -254,6 +258,7 @@ func executeSMTPStartTLS(ctx context.Context, req AppRequest) (AppResult, error)
 	}, nil
 }
 
+// smtpReply 解析后的 SMTP 回复帧
 type smtpReply struct {
 	Code  int
 	Line  string

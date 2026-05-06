@@ -6,27 +6,32 @@ import (
 	"time"
 )
 
+// 工具类型常量
 const (
 	ToolGS     = "gs"
 	ToolGPing  = "gping"
 	ToolModule = "module"
 )
 
+// 模块名称常量
 const (
 	ModuleNameGS = "gs-l4l7"
 )
 
+// 主体类型常量
 const (
 	SubjectHost     = "host"
 	SubjectEndpoint = "endpoint"
 )
 
+// 路由类型常量
 const (
 	RouteStack = "stack"
 	RouteRaw   = "raw"
 	RouteApp   = "app"
 )
 
+// 动作类型常量
 const (
 	ActionReach     = "reach"
 	ActionProbe     = "probe"
@@ -37,6 +42,7 @@ const (
 	ActionCollect   = "collect"
 )
 
+// 断言模式常量
 const (
 	AssertionObserved = "observed"
 	AssertionInferred = "inferred"
@@ -44,6 +50,7 @@ const (
 	AssertionOverride = "override"
 )
 
+// 验证状态常量
 const (
 	VerificationNone       = "none"
 	VerificationPending    = "pending"
@@ -51,12 +58,14 @@ const (
 	VerificationOverridden = "overridden"
 )
 
+// 主机可达性常量
 const (
 	HostReachable   = "reachable"
 	HostUnreachable = "unreachable"
 	HostUnknown     = "unknown"
 )
 
+// 端口状态常量
 const (
 	PortStateOpen       = "open"
 	PortStateClosed     = "closed"
@@ -66,6 +75,7 @@ const (
 	PortStateUnknown    = "unknown"
 )
 
+// Run 一次扫描运行记录，关联到某个工具的某次执行
 type Run struct {
 	RunID        string
 	Tool         string
@@ -80,6 +90,7 @@ type Run struct {
 	ExtraJSON    string
 }
 
+// Host 主机资产对象，以IP为唯一标识
 type Host struct {
 	HostID      string
 	IP          string
@@ -87,6 +98,7 @@ type Host struct {
 	LastSeenAt  time.Time
 }
 
+// Endpoint 端点资产对象，由主机+协议+端口三元组唯一标识
 type Endpoint struct {
 	EndpointID  string
 	HostID      string
@@ -96,6 +108,7 @@ type Endpoint struct {
 	LastSeenAt  time.Time
 }
 
+// Observation 一次探测观察的原始记录，属于某个Run，落在某个Host/Endpoint上
 type Observation struct {
 	ObservationID   string
 	RunID           string
@@ -115,6 +128,7 @@ type Observation struct {
 	ExtraJSON       string
 }
 
+// Claim 一条断言声明，由Observation推导而来，声明某个Subject的某个属性取值
 type Claim struct {
 	ClaimID       string
 	ObservationID string
@@ -129,6 +143,7 @@ type Claim struct {
 	ClaimedAt     time.Time
 }
 
+// HostProjectionCurrent 主机级当前投影，聚合多轮Claim后的最新主机状态快照
 type HostProjectionCurrent struct {
 	HostID                 string
 	CurrentReachability    *string
@@ -140,6 +155,7 @@ type HostProjectionCurrent struct {
 	SourceTool             *string
 }
 
+// EndpointProjectionCurrent 端口级当前投影，聚合多轮Claim后的最新端口状态快照
 type EndpointProjectionCurrent struct {
 	EndpointID          string
 	CurrentPortState    *string
@@ -160,6 +176,7 @@ type EndpointProjectionCurrent struct {
 	SourceTool          *string
 }
 
+// ModuleResult 模块执行的结构化产出，关联到某次Observation
 type ModuleResult struct {
 	ModuleResultID string
 	RunID          string
@@ -172,10 +189,12 @@ type ModuleResult struct {
 	CreatedAt      time.Time
 }
 
+// HostIDFromIP 将IP转换为HostID
 func HostIDFromIP(ip string) string {
 	return "host:" + ip
 }
 
+// EndpointID 根据hostID、协议和端口生成EndpointID
 func EndpointID(hostID string, protocol string, port int) string {
 	return fmt.Sprintf("%s:%s:%d", hostID, strings.ToLower(protocol), port)
 }

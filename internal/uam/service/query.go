@@ -8,10 +8,12 @@ import (
 	"strings"
 )
 
+// QueryService UAM只读查询服务，封装常用资产、观测查询接口
 type QueryService struct {
 	store *sqlitestore.Store
 }
 
+// QueryFilter 查询过滤器，支持按IP/端口/协议/工具/RunID筛选
 type QueryFilter struct {
 	IP       string
 	Port     int
@@ -20,6 +22,7 @@ type QueryFilter struct {
 	RunID    string
 }
 
+// RunSummary 运行记录摘要
 type RunSummary struct {
 	RunID       string  `json:"run_id"`
 	Tool        string  `json:"tool"`
@@ -30,6 +33,7 @@ type RunSummary struct {
 	ServiceScan bool    `json:"service_scan"`
 }
 
+// HostAsset 主机资产视图
 type HostAsset struct {
 	HostID                 string  `json:"host_id"`
 	IP                     string  `json:"ip"`
@@ -40,6 +44,7 @@ type HostAsset struct {
 	SourceTool             *string `json:"source_tool,omitempty"`
 }
 
+// EndpointAsset 端点资产视图
 type EndpointAsset struct {
 	EndpointID          string  `json:"endpoint_id"`
 	IP                  string  `json:"ip"`
@@ -61,6 +66,7 @@ type EndpointAsset struct {
 	SourceTool          *string `json:"source_tool,omitempty"`
 }
 
+// ObservationRow 观测记录行视图
 type ObservationRow struct {
 	ObservationID   string   `json:"observation_id"`
 	RunID           string   `json:"run_id"`
@@ -81,6 +87,7 @@ type ObservationRow struct {
 	ObservedAt      string   `json:"observed_at"`
 }
 
+// OpenQueryService 打开已有UAM数据库，返回查询服务
 func OpenQueryService(dbPath string) (*QueryService, error) {
 	store, err := sqlitestore.OpenExisting(dbPath)
 	if err != nil {
@@ -89,6 +96,7 @@ func OpenQueryService(dbPath string) (*QueryService, error) {
 	return &QueryService{store: store}, nil
 }
 
+// Close 关闭查询服务的数据库连接
 func (q *QueryService) Close() error {
 	if q == nil || q.store == nil {
 		return nil
@@ -96,6 +104,7 @@ func (q *QueryService) Close() error {
 	return q.store.Close()
 }
 
+// MustOpen 验证数据库连接可用（Ping）
 func (q *QueryService) MustOpen(ctx context.Context) error {
 	if q == nil || q.store == nil {
 		return fmt.Errorf("query service not initialized")
@@ -103,10 +112,12 @@ func (q *QueryService) MustOpen(ctx context.Context) error {
 	return q.store.DB().PingContext(ctx)
 }
 
+// ListRuns 列出最近的Run记录
 func (q *QueryService) ListRuns(ctx context.Context, limit int) ([]RunSummary, error) {
 	return q.ListRunsFiltered(ctx, QueryFilter{}, limit)
 }
 
+// ListRunsFiltered 按条件筛选并列出Run记录
 func (q *QueryService) ListRunsFiltered(ctx context.Context, filter QueryFilter, limit int) ([]RunSummary, error) {
 	if limit <= 0 {
 		limit = 20
@@ -177,10 +188,12 @@ LEFT JOIN endpoints e ON e.endpoint_id = o.endpoint_id`)
 	return items, rows.Err()
 }
 
+// ListHosts 列出所有主机资产
 func (q *QueryService) ListHosts(ctx context.Context, limit int) ([]HostAsset, error) {
 	return q.ListHostsFiltered(ctx, QueryFilter{}, limit)
 }
 
+// ListHostsFiltered 按条件筛选并列出主机资产
 func (q *QueryService) ListHostsFiltered(ctx context.Context, filter QueryFilter, limit int) ([]HostAsset, error) {
 	if limit <= 0 {
 		limit = 100
@@ -251,10 +264,12 @@ LEFT JOIN observations o ON o.host_id = v.host_id`)
 	return items, rows.Err()
 }
 
+// ListEndpoints 列出所有端点资产
 func (q *QueryService) ListEndpoints(ctx context.Context, limit int) ([]EndpointAsset, error) {
 	return q.ListEndpointsFiltered(ctx, QueryFilter{}, limit)
 }
 
+// ListEndpointsFiltered 按条件筛选并列出端点资产
 func (q *QueryService) ListEndpointsFiltered(ctx context.Context, filter QueryFilter, limit int) ([]EndpointAsset, error) {
 	if limit <= 0 {
 		limit = 100
@@ -363,10 +378,12 @@ LEFT JOIN observations o ON o.endpoint_id = v.endpoint_id`)
 	return items, rows.Err()
 }
 
+// ListObservations 列出最近观测记录
 func (q *QueryService) ListObservations(ctx context.Context, limit int) ([]ObservationRow, error) {
 	return q.ListObservationsFiltered(ctx, QueryFilter{}, limit)
 }
 
+// ListObservationsFiltered 按条件筛选并列出观测记录
 func (q *QueryService) ListObservationsFiltered(ctx context.Context, filter QueryFilter, limit int) ([]ObservationRow, error) {
 	if limit <= 0 {
 		limit = 100

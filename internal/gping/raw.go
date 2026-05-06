@@ -16,6 +16,7 @@ import (
 	"github.com/google/gopacket/pcap"
 )
 
+// rawTCPFlags 表示 TCP 头部各标志位
 type rawTCPFlags struct {
 	FIN bool
 	SYN bool
@@ -27,6 +28,7 @@ type rawTCPFlags struct {
 	CWR bool
 }
 
+// rawTCPProbeConfig 原始 TCP 探测配置参数
 type rawTCPProbeConfig struct {
 	SrcPort       uint16
 	Seq           uint32
@@ -43,6 +45,7 @@ type rawTCPProbeConfig struct {
 	StrictSYNMode bool
 }
 
+// rawICMPProbeConfig 原始 ICMP 探测配置参数
 type rawICMPProbeConfig struct {
 	Type        layers.ICMPv4TypeCode
 	Identifier  uint16
@@ -57,6 +60,7 @@ type rawICMPProbeConfig struct {
 	StrictEcho  bool
 }
 
+// executeRaw 执行原始数据包探测（TCP SYN/RAW 或 ICMP），使用 gopacket 收发包
 func executeRaw(ctx context.Context, target TargetContext, action ActionUnit) (routeEvidence, error) {
 	switch normalizeMethod(action.Method) {
 	case "tcp-syn", "tcp-raw":
@@ -68,6 +72,7 @@ func executeRaw(ctx context.Context, target TargetContext, action ActionUnit) (r
 	}
 }
 
+// executeRawTCP 发送自定义 TCP 包并捕获响应，解析标志位状态
 func executeRawTCP(_ context.Context, target TargetContext, action ActionUnit) (routeEvidence, error) {
 	cfg, err := buildRawTCPProbeConfig(action)
 	if err != nil {
@@ -167,6 +172,7 @@ func executeRawTCP(_ context.Context, target TargetContext, action ActionUnit) (
 	}, nil
 }
 
+// executeRawICMP 发送自定义 ICMP 包（如 Echo Request），根据响应判定可达性
 func executeRawICMP(_ context.Context, target TargetContext, action ActionUnit) (routeEvidence, error) {
 	cfg, err := buildRawICMPProbeConfig(action)
 	if err != nil {

@@ -11,16 +11,20 @@ import (
 	"time"
 )
 
+// redisAdapter Redis 协议适配器，支持 PING、INFO 命令
 type redisAdapter struct{}
 
+// Name 返回适配器名称
 func (redisAdapter) Name() string { return "redis" }
 
+// Capabilities 返回 Redis 适配器支持的能力
 func (redisAdapter) Capabilities() AdapterCapabilities {
 	return AdapterCapabilities{
 		SupportedMethods: []string{"redis-ping", "redis-info-server", "redis-info-replication"},
 	}
 }
 
+// Execute 执行 Redis 命令并返回结构化结果
 func (redisAdapter) Execute(ctx context.Context, req AppRequest) (AppResult, error) {
 	switch normalizeMethod(req.Method) {
 	case "redis-ping":
@@ -214,6 +218,7 @@ func writeRESPArray(conn net.Conn, parts ...string) error {
 	return err
 }
 
+// redisReplyKind 表示 Redis RESP 回复类型
 type redisReplyKind string
 
 const (
@@ -222,6 +227,7 @@ const (
 	redisReplyBulk   redisReplyKind = "bulk"
 )
 
+// redisReply 解析后的 Redis RESP 回复
 type redisReply struct {
 	Kind redisReplyKind
 	Text string

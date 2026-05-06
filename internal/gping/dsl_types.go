@@ -8,6 +8,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// TemplateAppliesTo 定义模板自动匹配的适用范围条件
 type TemplateAppliesTo struct {
 	Protocol       string   `yaml:"protocol" json:"protocol,omitempty"`
 	Ports          []int    `yaml:"ports" json:"ports,omitempty"`
@@ -16,6 +17,7 @@ type TemplateAppliesTo struct {
 	SourceTool     []string `yaml:"source_tool" json:"source_tool,omitempty"`
 }
 
+// IsZero 判断 AppliesTo 是否为空（没有任何筛选条件）
 func (a TemplateAppliesTo) IsZero() bool {
 	return strings.TrimSpace(a.Protocol) == "" &&
 		len(a.Ports) == 0 &&
@@ -24,6 +26,7 @@ func (a TemplateAppliesTo) IsZero() bool {
 		len(a.SourceTool) == 0
 }
 
+// TemplateVarSpec 定义模板变量的类型、默认值和描述
 type TemplateVarSpec struct {
 	Type        string `yaml:"type" json:"type,omitempty"`
 	Default     string `yaml:"default" json:"default,omitempty"`
@@ -54,8 +57,10 @@ func (s *TemplateVarSpec) UnmarshalYAML(node *yaml.Node) error {
 	}
 }
 
+// TemplateVars 模板变量的键值对集合
 type TemplateVars map[string]TemplateVarSpec
 
+// TemplateExtractSpec 定义从步骤结果中提取字段并映射到 UAM 声明的规则
 type TemplateExtractSpec struct {
 	From          string `yaml:"from" json:"from,omitempty"`
 	Field         string `yaml:"field" json:"field,omitempty"`
@@ -65,6 +70,7 @@ type TemplateExtractSpec struct {
 	AssertionMode string `yaml:"assertion_mode" json:"assertion_mode,omitempty"`
 }
 
+// TemplateRecommendSpec 定义模板执行后自动生成的资产归类建议
 type TemplateRecommendSpec struct {
 	VerificationState string            `yaml:"verification_state" json:"verification_state,omitempty"`
 	OverrideService   string            `yaml:"override_service_name" json:"override_service_name,omitempty"`
@@ -72,6 +78,7 @@ type TemplateRecommendSpec struct {
 	Then              map[string]string `yaml:"then" json:"then,omitempty"`
 }
 
+// PreviewValues 返回 Recommend 中无条件时的预览值
 func (r TemplateRecommendSpec) PreviewValues() map[string]string {
 	values := make(map[string]string)
 	if len(r.WhenAll) > 0 {
@@ -92,6 +99,7 @@ func (r TemplateRecommendSpec) PreviewValues() map[string]string {
 	return values
 }
 
+// ResolvedValues 返回 Recommend 中所有字段的最终取值（含 Then）
 func (r TemplateRecommendSpec) ResolvedValues() map[string]string {
 	values := make(map[string]string)
 	if state := strings.TrimSpace(r.VerificationState); state != "" {
@@ -109,6 +117,7 @@ func (r TemplateRecommendSpec) ResolvedValues() map[string]string {
 	return values
 }
 
+// Steps 返回模板的动作列表（优先使用 workflow，否则使用 actions）
 func (s TemplateSpec) Steps() []TemplateActionSpec {
 	if len(s.Workflow) > 0 {
 		return s.Workflow

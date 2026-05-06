@@ -1,385 +1,358 @@
 # Going_Scan
 
-Going_Scan 是一个以原始发包和 `pcap` 收包为核心的高性能网络扫描器。它将 L4 无状态探测与 L7 服务识别组合在同一条结果流水线中，既强调吞吐能力，也强调结果的结构化表达。
+> High-performance network asset scanning & analysis platform — Discover, Persist, Verify, Extend
 
-项目当前已经具备完整的主机探活、TCP/UDP 多协议端口扫描、服务识别、最终画像导出能力，适合继续向更深层的协议扫描与资产分析演进。
+<p align="center">
+  <a href="README.md"><img src="https://img.shields.io/badge/lang-English-blue.svg" alt="English"></a>
+  <a href="README_CN.md"><img src="https://img.shields.io/badge/lang-中文-green.svg" alt="中文"></a>
+</p>
 
-## Features
+<p align="center">
+  <img src="https://img.shields.io/badge/Go-1.24+-00ADD8?logo=go&logoColor=white" alt="Go Version">
+  <img src="https://img.shields.io/badge/Platform-Linux%20%7C%20macOS-lightgrey" alt="Platform">
+  <img src="https://img.shields.io/badge/build-passing-brightgreen" alt="Build">
+  <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome">
+</p>
 
-- 基于原始报文构造的无状态 L4 扫描
-- `pcap` 驱动的高速收包与回包匹配
-- `PacketTensor` 风格的 O(1) 状态判定
-- TCP SYN / ACK / Window 与 UDP 多协议扫描
-- 流式主机探活与端口扫描联动
-- L7 服务识别与结构化指纹提取
-- 基于 `nmap-service-probes` 的综合服务探测
-- JSON / YAML 最终画像导出
-- UAM SQLite 资产状态沉淀
-- 按 IP / 端口查询 UAM 当前视图与观察历史
-- 面向人的 UAM 综合报告输出
-- gping 定向确认与 UAM 回写
-- gping 模板、预览、候选目标与历史回看
+---
 
-## Why Going_Scan
+## Overview
 
-传统扫描器通常在两个方向上做取舍：
+Going_Scan is a high-performance network scanner and asset analysis platform written in Go. Three subsystems work in concert to form a complete asset reconnaissance workflow:
 
-- 要么偏重吞吐，把结果压缩成“端口是否开放”
-- 要么偏重识别，把大量时间消耗在连接和协议探测上
+| Tool | Role | Mission |
+|------|------|---------|
+| **GS** | High-speed Discovery | Mass-scale, high-throughput automated asset discovery |
+| **UAM** | Unified Asset Model | Long-term storage of asset identity, observations, claims, views |
+| **gping** | Targeted Validator | Human-driven precise verification, correction, and override |
 
-Going_Scan 的设计目标是把这两件事拆开并串联起来：
+GS casts a wide net, gping confirms with precision, and UAM keeps the long-term record. All three share a single SQLite database as their data exchange hub.
 
-- L4 层负责高速、无状态、可控的原始探测
-- L7 层只消费可信结果，负责识别服务与提取指纹
-- 输出层统一聚合事实流，生成最终画像
+---
 
-这使它既适合做高速发现，也适合作为后续深层扫描系统的前置引擎。
+## Design Philosophy
 
-## Architecture Overview
+Traditional scanners force a trade-off: optimize for throughput by reducing results to "port open or not", or optimize for depth by spending excessive time on per-connection probing.
 
-### L4: Stateless Packet Tensor Engine
+Going_Scan separates and connects these concerns:
 
-L4 部分是 Going_Scan 的性能核心。
+- **L4 Layer** — High-speed, stateless, controlled raw probing for rapid discovery
+- **L7 Layer** — Consumes only trusted results for service identification and fingerprinting
+- **Output Layer** — Aggregates fact streams into structured host/port portraits
+- **Asset Layer (UAM)** — Persists all discoveries as traceable asset knowledge
+- **Verification Layer (gping)** — Targeted confirmation of suspicious endpoints, writing back to the asset store
 
-它不依赖传统 `connect()` 作为主扫描路径，而是直接构造以太网、IP、TCP/UDP/ICMP 报文，通过网卡发出，再通过 `pcap` 收包完成匹配与判定。
+The goal is not "a better scanner" — it's **a traceable, verifiable, extensible asset intelligence system**.
 
-这一层的关键点有三个：
+---
 
-#### 1. Raw packet injection
+## Key Capabilities
 
-- 直接构造 L2/L3/L4 报文
-- 发包与收包完全解耦
-- 不让操作系统 Socket 状态机主导扫描节奏
+### L4 Scan Modes
 
-#### 2. PacketTensor-style classification
+- **TCP SYN** — Half-open scan (default), the most common port scanning technique
+- **TCP ACK** — Firewall rule discovery, determines whether ports are filtered
+- **TCP Window** — Uses TCP Window field to assist port state classification
+- **UDP** — UDP port state probing
+- **Host Discovery** — Multi-protocol liveness detection (ICMP Echo / TCP / UDP), results stream into port scanning in real time
 
-收到的回包不会进入一套沉重的逐层解释逻辑，而是被快速压缩为一个轻量状态张量，再用位运算和固定规则完成判定。
+### L7 Service Detection
 
-这让以下场景可以稳定输出：
+- Embedded nmap-service-probes database
+- Pre-compiled regex matching with port-indexed probe selection
+- Extracted fields: service, product, version, info, hostname, os, device, cpes
+- Supports TCP/UDP, SSL ports, fallback probes, rarity classification
 
-- TCP SYN: `open / closed / filtered`
-- TCP ACK: `unfiltered / filtered`
-- TCP Window: `open / closed / filtered`
-- UDP: `open / closed / filtered`
-- ICMP: 主机探活反馈
+### gping Protocol Adapters
 
-#### 3. High-throughput stateless pipeline
+HTTP(S), DNS, SSH (with ECDH key exchange + SHA256 host key fingerprinting), MySQL (including MariaDB/Percona flavor detection), Redis (RESP protocol + INFO parsing), FTP (RFC 959 multi-line replies), SMTP (with STARTTLS certificate extraction)
 
-L4 引擎采用了适合高并发扫描的流水线式设计：
+### gping Three-Route Architecture
 
-- 发包协程与回包分发分离
-- 使用锁无关结果缓冲区承接战果
-- 通过 channel ID + 目标校验码完成 O(1) 物理匹配
-- 主机探活结果可直接推进端口扫描，不必等待全量探活结束
+| Route | Purpose | Methods |
+|-------|---------|---------|
+| **Raw** | Packet-level control bypassing the OS stack | tcp-syn, icmp-echo-raw |
+| **Stack** | Real communication via OS protocol stack | tcp-connect, tls-handshake, banner-read |
+| **App** | Application-layer protocol adapters | HTTP/DNS/SSH/MySQL/Redis/FTP/SMTP |
 
-结果是：L4 层更接近一个“无状态探测引擎”，而不是一个逐连接处理器。
+---
 
-### L7: Integrated Service Scan Engine
+## Core Technical Highlights
 
-L7 部分负责把“端口开放”进一步转换为“这是什么服务”。
+**PacketTensor Classification** — Inbound replies are compressed into a 32-bit lightweight state tensor (uint32) with O(1) bitwise port state classification, producing zero GC pressure. Bit layout: bits 0-7 TCP Flags/ICMP Type, bits 8-15 IP TTL, bits 16-19 Window Size quantized/ICMP Code, bits 20-27 IP Protocol, with 0xFFFFFFFF as the timeout sentinel.
 
-它不是对所有结果无差别进行连接探测，而是只对可信开放结果做服务识别，这样既能减少无效连接，也能保持整个扫描过程的可靠性。
+**CWND Adaptive Concurrency** — Modeled after TCP congestion control: the concurrency window grows on successful replies and multiplicatively halves on timeouts. Engine parallelism self-tunes to network conditions, complemented by SRTT exponential smoothing and dynamic RTO computation.
 
-L7 的核心能力包括：
+**Channel ID Physical Matching** — The channel ID is encoded into the source port of each outgoing packet. On receive, the destination port directly (O(1)) locates the corresponding probe with no table lookups. A 64-bit checksum (srcIP + srcPort) ensures atomic matching.
 
-- 内嵌 `nmap-service-probes`
-- 启动期完成探针解析与正则预编译
-- 基于端口索引选择候选探针
-- 支持 `ports` / `sslports` / `fallback`
-- 支持 `rarity` / `totalwaitms`
-- 区分 TCP / UDP 探针路径
-- 支持分段响应累计读取
-- 提取结构化服务指纹
+**Zero-Allocation Send Pipeline** — 128-byte packet buffers are pooled via sync.Pool. L2/L3/L4 headers are built directly on pooled memory. A lock-free ring buffer (capacity 65536) carries high-throughput result streams between pipeline stages.
 
-最终输出不仅有 `service` 和 `banner`，还会尽可能带出：
+**Five-Layer UAM** — Identity → Observation → Claim → Projection → Extension, each layer with non-overlapping responsibilities. Claim priority system: override(4) > manual(3) > observed(2) > inferred(1), ensuring manual confirmation is never overwritten by automated scans.
 
-- `product`
-- `version`
-- `info`
-- `hostname`
-- `os`
-- `device`
-- `cpes`
+**Template-Based Verification** — 16 built-in YAML templates with `${var}` expansion, conditional execution (when DSL), multi-step orchestration, extraction rules, and recommendation rules, standardizing common verification workflows.
 
-这使 Going_Scan 的 L7 阶段不仅是“看端口像不像 HTTP”，而是一个综合服务识别引擎。
+---
 
-## Scan Model
+## Real-World Results: C-Class Network Scan
 
-Going_Scan 当前采用“事实流 + 最终画像”的结果模型。
+The following data comes from a live scan of `123.X.225.0/24` (256 IPs, Top 50 ports, SYN + service detection, T4 timing) performed on April 21, 2026.
 
-扫描过程中，每一个结果都会以独立事实的形式输出，例如：
+### Scan Dashboard
 
-- `tcp-syn=open`
-- `tcp-ack=unfiltered`
-- `tcp-window=open`
-- `udp=open`
+![Scan Dashboard](doc/images/dashboard.png)
 
-扫描结束后，系统会将这些事实聚合为端口画像，并给出：
+### Performance Timeline
 
-- `summary_state`
-- `facts`
-- `service`
-- `product`
-- `version`
-- `banner`
+![Performance Timeline](doc/images/perf_timeline.png)
 
-这种设计保留了原始判断依据，也为后续深层扫描留出了干净的数据接口。
+The scan completed in 38.4 seconds with CWND and RTO self-tuning throughout:
 
-## Project Layout
+![CWND & RTO Dynamics](doc/images/cwnd_rto.png)
 
-```text
-cmd/                CLI 入口
-pkg/core/           L4 引擎、任务调度、结果流、画像输出
-pkg/l7/             L7 服务识别引擎与 Nmap 探针解析
-pkg/routing/        路由与网关解析
-pkg/target/         目标迭代器与 CIDR 遍历
-pkg/queue/          结果队列与无锁缓冲
-internal/gping/     gping 执行器、模板、预览与历史回看
-internal/uam/       UAM 契约层、SQLite 存储、查询与报告
-doc/                项目日志与阶段进展
-```
+### Service Distribution
 
-## Requirements
+Service types found across 335 open ports:
 
-- Go 1.24 或兼容版本
-- 可用的 `libpcap` / `npcap`
-- 具备原始发包与抓包权限
+![Service Distribution](doc/images/service_distribution.png)
 
-在 Linux 和 macOS 上，通常需要 `root` 或等效权限运行扫描命令。
+### Web Server Identification
 
-## Build
+Web server types identified from HTTP + HTTPS endpoints:
+
+![Web Servers](doc/images/web_servers.png)
+
+### Throughput Statistics
+
+![Throughput](doc/images/throughput.png)
+
+### gping Targeted Verification
+
+Step-by-step latency for four target endpoints (HTTPS full 4-step chain, SSH 3-step confirmation, MySQL 2-step + SSL skip, HTTP Banner timeout + application-layer verification):
+
+![gping Results](doc/images/gping_results.png)
+
+---
+
+## Quick Start
+
+### Requirements
+
+- Go 1.24+
+- libpcap / npcap development libraries
+- Linux or macOS (root privileges required for scanning)
+- gcc (required for CGO SQLite compilation)
+
+### Build
 
 ```bash
 go build -o goscan .
+./goscan --help
 ```
 
-## Test
+### Run Tests
 
 ```bash
 go test ./...
 ```
 
-## Quick Start
+---
 
-默认扫描内置高频端口：
+## Typical Workflows
 
-```bash
-./goscan scan 192.168.1.10
-```
-
-扫描指定端口：
+### Basic: Quick Scan
 
 ```bash
-./goscan scan 192.168.1.10 -p 22,80,443
+# Fast SYN scan + service detection on a /24, export JSON portrait
+./goscan scan 192.168.1.0/24 --syn -F -V -o report.json
 ```
 
-扫描一个网段：
+### Complete: GS + UAM + gping Asset Loop
+
+**Step 1**: GS discovers assets and persists to UAM
 
 ```bash
-./goscan scan 192.168.1.0/24 -F
+./goscan scan 192.168.1.0/24 --syn -V --uam-db uam.db
 ```
 
-## Usage
-
-### L4 Scan Modes
-
-默认端口扫描模式是 `tcp-syn`。也可以组合多种 L4 扫描方法：
-
-```bash
-./goscan scan 192.168.1.10 --syn --ack --window
-```
-
-同时扫描 TCP 与 UDP：
-
-```bash
-./goscan scan 192.168.1.10 --syn --udp -p 53,80,443
-```
-
-只做 UDP 扫描：
-
-```bash
-./goscan scan 192.168.1.10 --udp -p 53,123,161
-```
-
-使用内置高频端口集：
-
-```bash
-./goscan scan 192.168.1.10 -F
-```
-
-使用前 N 个内置高频端口：
-
-```bash
-./goscan scan 192.168.1.10 --top-ports 50
-```
-
-### L7 Service Detection
-
-开启 `-V` 后，Going_Scan 会在 L4 结果基础上执行服务识别：
-
-```bash
-./goscan scan 192.168.1.10 --syn -V -p 22,80,443
-```
-
-多协议扫描配合 L7：
-
-```bash
-./goscan scan 192.168.1.10 --syn --udp -V -p 53,80,443
-```
-
-### Output Portraits
-
-导出 JSON 画像：
-
-```bash
-./goscan scan 192.168.1.10 --syn --ack --window -V -o report.json
-```
-
-导出 YAML 画像：
-
-```bash
-./goscan scan 192.168.1.10 --syn --udp -V -o report.yaml
-```
-
-显式指定格式：
-
-```bash
-./goscan scan 192.168.1.10 --syn -V -o report.out --output-format yaml
-```
-
-### UAM SQLite Output
-
-将 GS 扫描事实正式写入 UAM：
-
-```bash
-./goscan scan 192.168.1.10 --syn --ack --window -V -p 22,80,443 --uam-db uam.db
-```
-
-这会把以下内容推进到 SQLite：
-
-- Run 元数据
-- 主机探活事实
-- L4 扫描 Observation / Claim
-- L7 服务识别 enrichment
-- Host / Endpoint 当前 Projection
-
-### UAM Queries
-
-按 IP 查看当前端点视图：
-
-```bash
-./goscan uam endpoints --db uam.db --ip 192.168.1.10
-```
-
-按 IP 和端口查看 Observation 历史：
-
-```bash
-./goscan uam observations --db uam.db --ip 192.168.1.10 --port 443
-```
-
-输出一份面向人的综合报告：
-
-```bash
-./goscan uam report --db uam.db --ip 192.168.1.10
-```
-
-### gping Targeted Validation
-
-查看内置模板：
-
-```bash
-./goscan gping templates
-./goscan gping templates --show uam/https-enrich
-```
-
-从 UAM 查看候选目标：
+**Step 2**: List candidate HTTPS endpoints from UAM
 
 ```bash
 ./goscan gping candidates --uam-db uam.db --uam-service https
 ```
 
-执行前预览：
+**Step 3**: Verify and confirm a target
 
 ```bash
-./goscan gping preview --uam-db uam.db --uam-service https --pick-index 1 --template uam/https-enrich --assert confirmed
+./goscan gping --uam-db uam.db --uam-service https --pick-index 1 \
+  --template uam/https-enrich --assert confirmed
 ```
 
-执行一次 HTTPS 确认并回写 UAM：
+**Step 4**: View a host's complete asset report
 
 ```bash
-./goscan gping --uam-db uam.db --uam-service https --pick-index 1 --template uam/https-enrich --assert confirmed
+./goscan uam report --db uam.db --ip 192.168.1.10
 ```
 
-查看 gping 历史：
+---
+
+## Command Reference
+
+### L4 Scan Modes
 
 ```bash
+# Default SYN scan
+./goscan scan 192.168.1.10 -p 22,80,443
+
+# Multi-method combination
+./goscan scan 192.168.1.10 --syn --ack --window
+
+# TCP + UDP hybrid
+./goscan scan 192.168.1.10 --syn --udp -p 53,80,443
+
+# Fast scan (Top 100 ports)
+./goscan scan 192.168.1.0/24 -F
+
+# Top N ports
+./goscan scan 192.168.1.0/24 --top-ports 50
+```
+
+### L7 Service Detection
+
+```bash
+# SYN + service detection
+./goscan scan 192.168.1.10 --syn -V -p 22,80,443
+
+# Port range + service detection
+./goscan scan 192.168.1.0/24 -p 1-1024 --syn -V -T 4
+```
+
+### Output Formats
+
+```bash
+# JSON portrait
+./goscan scan 192.168.1.10 --syn -V -o report.json
+
+# YAML portrait
+./goscan scan 192.168.1.10 --syn -V -o report.yaml
+
+# Explicit format override
+./goscan scan 192.168.1.10 --syn -V -o report.out --output-format yaml
+```
+
+### UAM Asset Queries
+
+```bash
+# List runs
+./goscan uam runs --db uam.db
+
+# List hosts
+./goscan uam hosts --db uam.db
+
+# Query endpoints by IP
+./goscan uam endpoints --db uam.db --ip 192.168.1.10
+
+# Query observation history by IP + port
+./goscan uam observations --db uam.db --ip 192.168.1.10 --port 443
+
+# Comprehensive host report
+./goscan uam report --db uam.db --ip 192.168.1.10
+```
+
+### gping Targeted Verification
+
+```bash
+# List templates
+./goscan gping templates
+./goscan gping templates --show uam/https-enrich
+
+# Candidate targets
+./goscan gping candidates --uam-db uam.db --uam-service https
+
+# Preview (no actual execution)
+./goscan gping preview --uam-db uam.db --uam-service https --pick-first --template uam/https-enrich
+
+# Execute verification
+./goscan gping --uam-db uam.db --uam-service https --pick-first --template uam/https-enrich --assert confirmed
+
+# Standalone (no UAM dependency)
+./goscan gping --ip 192.168.1.10 --port 443 --method tcp-connect --route stack
+
+# View history
 ./goscan gping history --uam-db uam.db --ip 192.168.1.10 --port 443 --protocol tcp --verbose
 ```
 
-当前 gping 第一阶段已支持的方法包括：
+### Performance Tuning
 
-- `raw`: `tcp-syn`, `icmp-echo-raw`
-- `stack`: `tcp-connect`, `banner-read`, `tls-handshake`
-- `app`: `http-head`, `http-get`, `http-post`
+```bash
+# Timing templates (T1 most conservative, T5 most aggressive)
+./goscan scan 192.168.1.0/24 -p 1-1000 --syn -T 5
 
-其中 `raw` 路线仍然需要原始发包与抓包权限。
+# Send rate limit
+./goscan scan 192.168.1.0/24 -p 1-1000 --syn --max-rate 100
 
-## Output Format
+# Parallelism control
+./goscan scan 192.168.1.0/24 -p 1-1000 --syn --min-parallelism 16 --max-parallelism 64
 
-终端输出是实时事实流，文件输出是扫描结束后的最终画像。
+# Retry and timeout
+./goscan scan 192.168.1.0/24 -p 1-1000 --syn --max-retries 1 --max-rtt-timeout 500
+```
 
-最终画像包含：
+---
 
-- 扫描命令与目标元数据
-- 扫描 profile 列表
-- 解析后的端口列表
-- 主机与端口画像
-- 原始 `facts`
-- 聚合后的 `summary_state`
-- L7 结构化指纹
+## Project Structure
 
-这意味着 Going_Scan 的输出不仅适合人工阅读，也适合后续工具继续消费。
+```
+cmd/                CLI entry points (root, scan, gping, uam subcommands)
+pkg/core/           L4 engine, task scheduling, result streaming, portrait output
+pkg/l7/             L7 service detection engine and nmap probe parsing
+pkg/routing/        Route and gateway resolution
+pkg/target/         Target iterators and CIDR traversal
+pkg/queue/          Result queue and lock-free ring buffer
+internal/gping/     gping executor, templates, preview, and history
+internal/uam/       UAM contracts, SQLite storage, query, and reporting
+doc/                Project documentation
+scripts/            Helper scripts (chart generation, etc.)
+```
 
-## Example Workflow
+### Suggested Reading Order
 
-1. 使用 L4 模式高速发现开放端口
-2. 对可信开放结果执行 L7 服务识别
-3. 生成结构化资产画像
-4. 将画像作为后续协议专项扫描的输入
+1. `main.go` — Program entry point
+2. `cmd/root.go` — CLI command tree
+3. `pkg/core/engine.go` — L4 engine main loop
+4. `pkg/core/tensor.go` — PacketTensor classifier
+5. `pkg/core/l7engine.go` — L7 service detection engine
+6. `pkg/core/report.go` — Portrait output
+7. `pkg/l7/nmap_parser.go` — nmap probe parsing
+8. `internal/gping/runner.go` — gping lifecycle
+9. `internal/gping/resolver.go` — Target resolution
+10. `internal/uam/service/ingest_gs.go` — GS → UAM ingestion
+11. `internal/uam/service/query.go` — UAM query service
+12. `internal/uam/service/report.go` — Comprehensive reporting
 
-如果启用了 UAM，这条工作流还会进一步变成：
-
-1. GS 发现资产
-2. UAM 沉淀 Observation / Claim / Projection
-3. 用户按 IP / 端口查询当前状态与历史事实
-4. gping 对可疑端点做定向确认并回写 UAM
-5. 后续由专项扫描继续扩展
-
-这也是 Going_Scan 当前的核心价值所在：它不仅做扫描，还为后续更深层的自动化分析提供稳定、统一的入口。
-
-## Reading Guide
-
-如果你希望快速理解代码，建议按下面顺序阅读：
-
-- `main.go`
-- `cmd/root.go`
-- `cmd/gping.go`
-- `pkg/core/engine.go`
-- `pkg/core/l7engine.go`
-- `pkg/core/report.go`
-- `pkg/l7/nmap_parser.go`
-- `pkg/l7/l7worker.go`
-- `internal/gping/runner.go`
-- `internal/gping/resolver.go`
-- `internal/gping/preview.go`
-- `internal/uam/service/ingest_gs.go`
-- `internal/uam/service/query.go`
-- `internal/uam/service/report.go`
+---
 
 ## Documentation
 
-- `doc/dev_log.md`
-- `doc/progress.md`
-- `doc/uam.md`
-- `doc/gping.md`
-- `gping.md`
+- [Project Overview](doc/project-overview.md) — Project definition, core technical highlights, three-tool collaboration
+- [Complete Reference](doc/project-reference.md) — Architecture details, data flows, CLI reference, design decisions
+
+---
+
+## Disclaimer
+
+This tool is intended **solely for authorized security research and educational purposes**. Users must obtain explicit permission before scanning any networks or systems they do not own. The author assumes no liability for misuse or damage caused by this tool. Unauthorized port scanning may violate applicable laws and regulations.
+
+---
+
+## Contributing
+
+This project is currently maintained by an individual developer. Bug reports, feature suggestions, and pull requests are welcome. For any inquiries, please contact **liningyu7569@gmail.com**.
+
+---
+
+## Tech Stack
+
+- **Language**: Go 1.24+
+- **Packet I/O**: libpcap / npcap
+- **Storage**: SQLite (WAL mode + foreign key constraints)
+- **Privileges**: Root or equivalent capabilities required for scanning on Linux/macOS

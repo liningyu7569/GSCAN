@@ -8,6 +8,7 @@ import (
 	"time"
 )
 
+// HostReport 主机综合报告，聚合主机状态、端口资产、观测记录和Run历史
 type HostReport struct {
 	GeneratedAt  string           `json:"generated_at"`
 	Filter       QueryFilter      `json:"filter"`
@@ -17,6 +18,7 @@ type HostReport struct {
 	Observations []ObservationRow `json:"observations"`
 }
 
+// BuildHostReport 构建指定IP的主机综合报告，聚合host/endpoints/observations/runs
 func (q *QueryService) BuildHostReport(ctx context.Context, filter QueryFilter, limit int) (HostReport, error) {
 	if strings.TrimSpace(filter.IP) == "" {
 		return HostReport{}, fmt.Errorf("ip filter is required for host report")
@@ -64,6 +66,7 @@ func (q *QueryService) BuildHostReport(ctx context.Context, filter QueryFilter, 
 	return report, nil
 }
 
+// RenderHostReport 将HostReport渲染为人类可读的文本格式
 func RenderHostReport(report HostReport) string {
 	var b strings.Builder
 	ip := strings.TrimSpace(report.Filter.IP)

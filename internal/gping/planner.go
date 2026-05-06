@@ -6,6 +6,7 @@ import (
 	"strings"
 )
 
+// Plan 根据选项和目标规划动作列表：优先使用模板，否则按单次方法构建
 func Plan(opts Options, target TargetContext) ([]ActionUnit, string, error) {
 	if strings.TrimSpace(opts.TemplateName) != "" {
 		spec, err := LoadTemplate(opts.TemplateName)
@@ -38,6 +39,7 @@ func Plan(opts Options, target TargetContext) ([]ActionUnit, string, error) {
 	return []ActionUnit{action}, "", nil
 }
 
+// planFromTemplate 根据模板定义展开变量并构建动作列表
 func planFromTemplate(spec TemplateSpec, opts Options, target TargetContext) ([]ActionUnit, string, error) {
 	vars, err := buildTemplateVars(spec, opts, target)
 	if err != nil {
@@ -103,6 +105,7 @@ func planFromTemplate(spec TemplateSpec, opts Options, target TargetContext) ([]
 	return actions, spec.Name, nil
 }
 
+// buildSingleAction 为单次命令行调用构建单个探测动作
 func buildSingleAction(route string, method string, opts Options, target TargetContext) (ActionUnit, error) {
 	action := ActionUnit{
 		Index:              1,

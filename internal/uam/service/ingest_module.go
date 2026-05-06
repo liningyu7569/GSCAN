@@ -8,6 +8,7 @@ import (
 	"time"
 )
 
+// ModuleRunMetadata 模块运行元数据
 type ModuleRunMetadata struct {
 	Command string
 	Targets []string
@@ -15,11 +16,13 @@ type ModuleRunMetadata struct {
 	Extra   map[string]any
 }
 
+// ModuleResultInput 模块的结构化产出输入
 type ModuleResultInput struct {
 	SchemaVersion string
 	DataJSON      string
 }
 
+// ModuleObservationInput 模块单次探测的完整输入，含探测字段、Claim列表和ModuleResult列表
 type ModuleObservationInput struct {
 	IP              string
 	Protocol        string
@@ -37,11 +40,13 @@ type ModuleObservationInput struct {
 	Results         []ModuleResultInput
 }
 
+// ModuleIngester 外部模块探测结果接入器
 type ModuleIngester struct {
 	*contractIngester
 	moduleName string
 }
 
+// NewModuleIngester 创建ModuleIngester，初始化数据库并创建Run记录
 func NewModuleIngester(ctx context.Context, dbPath string, moduleName string, metadata ModuleRunMetadata) (*ModuleIngester, error) {
 	base, err := newContractIngester(ctx, dbPath, domain.ToolModule, moduleName, ContractRunMetadata{
 		Command: metadata.Command,
@@ -59,6 +64,7 @@ func NewModuleIngester(ctx context.Context, dbPath string, moduleName string, me
 	}, nil
 }
 
+// IngestObservation 将单条模块探测结果写入Observation、Claim、ModuleResult并刷新Projection
 func (m *ModuleIngester) IngestObservation(ctx context.Context, input ModuleObservationInput) error {
 	if m == nil || m.store == nil {
 		return nil

@@ -11,11 +11,13 @@ import (
 	"time"
 )
 
+// contractIngester 通用接入器基类，所有具体Ingester均内嵌此结构
 type contractIngester struct {
 	store *sqlitestore.Store
 	run   domain.Run
 }
 
+// RunID 返回当前接入器的Run ID
 func (c *contractIngester) RunID() string {
 	if c == nil {
 		return ""
@@ -23,6 +25,7 @@ func (c *contractIngester) RunID() string {
 	return c.run.RunID
 }
 
+// ContractRunMetadata 通用Run元数据，所有工具接入时均需提供
 type ContractRunMetadata struct {
 	Command      string
 	Targets      []string
@@ -34,6 +37,7 @@ type ContractRunMetadata struct {
 	Extra        map[string]any
 }
 
+// newContractIngester 创建通用接入器，打开数据库、执行Migrate并创建Run记录
 func newContractIngester(ctx context.Context, dbPath string, tool string, moduleName string, metadata ContractRunMetadata) (*contractIngester, error) {
 	store, err := sqlitestore.Open(dbPath)
 	if err != nil {
@@ -61,6 +65,7 @@ func newContractIngester(ctx context.Context, dbPath string, tool string, module
 	}, nil
 }
 
+// Close 标记Run结束并关闭数据库连接
 func (c *contractIngester) Close(ctx context.Context) error {
 	if c == nil || c.store == nil {
 		return nil
@@ -74,6 +79,7 @@ func (c *contractIngester) Close(ctx context.Context) error {
 	return closeErr
 }
 
+// refreshProjections 根据新Claim刷新Host和Endpoint的投影快照（内含优先级判断与写入）
 func refreshProjections(ctx context.Context, store *sqlitestore.Store, tx *sql.Tx, observation domain.Observation, claims []domain.Claim, hostID string, endpointID string) error {
 	hostGroup := project.SelectHostGroup(claims)
 	if hostGroup != nil {

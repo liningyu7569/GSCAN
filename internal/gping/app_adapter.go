@@ -7,6 +7,7 @@ import (
 	"time"
 )
 
+// AppRequest 封装一次应用层探测请求的所有参数
 type AppRequest struct {
 	TargetIP string
 	Port     int
@@ -27,6 +28,7 @@ type AppRequest struct {
 	InsecureTLS bool
 }
 
+// AppResult 封装一次应用层探测的返回结果
 type AppResult struct {
 	RawStatus       string
 	RequestSummary  string
@@ -37,6 +39,7 @@ type AppResult struct {
 	Extra           map[string]any
 }
 
+// AdapterCapabilities 描述适配器支持的能力（TLS、Host、SNI 等）
 type AdapterCapabilities struct {
 	SupportsTLS      bool
 	SupportsHost     bool
@@ -45,6 +48,7 @@ type AdapterCapabilities struct {
 	SupportedMethods []string
 }
 
+// AppAdapter 定义应用层协议适配器的统一接口
 type AppAdapter interface {
 	Name() string
 	Capabilities() AdapterCapabilities

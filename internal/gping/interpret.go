@@ -9,6 +9,7 @@ import (
 	"strings"
 )
 
+// interpretEvidence 将路由证据解释为结构化执行报告，包含推断的 UAM 断言
 func interpretEvidence(target TargetContext, action ActionUnit, evidence routeEvidence) ExecutionReport {
 	report := ExecutionReport{
 		IP:              target.IP,
@@ -29,6 +30,7 @@ func interpretEvidence(target TargetContext, action ActionUnit, evidence routeEv
 	return report
 }
 
+// actionTypeForMethod 将探测方法映射到 UAM 动作类型（reach/collect/handshake/request/probe）
 func actionTypeForMethod(method string) string {
 	switch normalizeMethod(method) {
 	case "icmp-echo-raw":
@@ -44,6 +46,7 @@ func actionTypeForMethod(method string) string {
 	}
 }
 
+// buildClaimsFromEvidence 根据证据为每种方法生成对应的 UAM 断言（端口状态、服务名、版本等）
 func buildClaimsFromEvidence(target TargetContext, action ActionUnit, evidence routeEvidence) []normalize.GPingClaimInput {
 	method := normalizeMethod(action.Method)
 	claims := make([]normalize.GPingClaimInput, 0, 10)

@@ -10,6 +10,7 @@ import (
 	"strings"
 )
 
+// ResolveTarget 解析目标来源（字面IP、URL、UAM端点或UAM筛选），返回统一的目标上下文
 func ResolveTarget(ctx context.Context, opts Options) (TargetContext, error) {
 	if strings.TrimSpace(opts.UAMEndpoint) != "" {
 		target, err := resolveFromUAMEndpoint(ctx, opts.UAMDBPath, opts.UAMEndpoint)
@@ -80,6 +81,7 @@ func ResolveTarget(ctx context.Context, opts Options) (TargetContext, error) {
 	return TargetContext{}, fmt.Errorf("target is required: use --url, --ip/--port, or --uam-endpoint")
 }
 
+// resolveFromURL 从原始 URL 解析目标（IP、端口、路径、Scheme）
 func resolveFromURL(raw string, opts Options) (TargetContext, error) {
 	parsed, err := url.Parse(strings.TrimSpace(raw))
 	if err != nil {
@@ -132,6 +134,7 @@ func resolveFromURL(raw string, opts Options) (TargetContext, error) {
 	return target, nil
 }
 
+// resolveFromUAMEndpoint 根据 UAM 端点 ID 从 SQLite 数据库中查询目标上下文
 func resolveFromUAMEndpoint(ctx context.Context, dbPath string, endpointID string) (TargetContext, error) {
 	if strings.TrimSpace(dbPath) == "" {
 		return TargetContext{}, fmt.Errorf("--uam-db is required when using --uam-endpoint")
@@ -183,6 +186,7 @@ WHERE endpoint_id = ?`, strings.TrimSpace(endpointID))
 	return target, nil
 }
 
+// resolveFromUAMFilters 按服务名/验证状态等筛选 UAM 端点，支持 --pick-first/--pick-index
 func resolveFromUAMFilters(ctx context.Context, opts Options) (TargetContext, error) {
 	candidates, err := ListCandidates(ctx, opts, 11)
 	if err != nil {

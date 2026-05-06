@@ -8,6 +8,7 @@ import (
 	"time"
 )
 
+// GSResult GS的L4/L7服务探测结果，包含端口状态、服务识别等全部信息
 type GSResult struct {
 	IP       string
 	Port     int
@@ -25,6 +26,7 @@ type GSResult struct {
 	Banner   string
 }
 
+// GSDiscovery GS的主机发现结果，仅记录主机级可达性
 type GSDiscovery struct {
 	IP       string
 	Method   string
@@ -32,6 +34,7 @@ type GSDiscovery struct {
 	Protocol string
 }
 
+// ObservationFromGS 将GS扫描结果转换为Observation对象（L4端口扫描+L7服务识别）
 func ObservationFromGS(runID string, hostID string, endpointID string, observationID string, observedAt time.Time, result GSResult) (domain.Observation, error) {
 	extraJSON, err := marshalJSON(map[string]any{
 		"protocol": result.Protocol,
@@ -71,6 +74,7 @@ func ObservationFromGS(runID string, hostID string, endpointID string, observati
 	}, nil
 }
 
+// ObservationFromGSDiscovery 将GS主机发现结果转换为Observation（纯主机级可达性探测）
 func ObservationFromGSDiscovery(runID string, hostID string, observationID string, observedAt time.Time, discovery GSDiscovery) (domain.Observation, error) {
 	extraJSON, err := marshalJSON(map[string]any{
 		"protocol": discovery.Protocol,
@@ -93,6 +97,7 @@ func ObservationFromGSDiscovery(runID string, hostID string, observationID strin
 	}, nil
 }
 
+// ClaimsFromGS 从GS结果中提取完整Claim列表（包括可达性、端口状态和服务识别）
 func ClaimsFromGS(observation domain.Observation, hostID string, endpointID string, now time.Time, result GSResult, nextClaimID func() string) []domain.Claim {
 	claims := make([]domain.Claim, 0, 12)
 
@@ -112,6 +117,7 @@ func ClaimsFromGS(observation domain.Observation, hostID string, endpointID stri
 	return claims
 }
 
+// ServiceClaimsFromGS 仅提取GS结果中的服务识别Claim（service/product/version等），不含可达性
 func ServiceClaimsFromGS(observation domain.Observation, endpointID string, now time.Time, result GSResult, nextClaimID func() string) []domain.Claim {
 	if endpointID == "" {
 		return nil
@@ -151,6 +157,7 @@ func ServiceClaimsFromGS(observation domain.Observation, endpointID string, now 
 	return claims
 }
 
+// ClaimsFromGSDiscovery 从GS主机发现结果中提取Claim（仅可达性声明）
 func ClaimsFromGSDiscovery(observation domain.Observation, hostID string, now time.Time, discovery GSDiscovery, nextClaimID func() string) []domain.Claim {
 	return []domain.Claim{
 		newTextClaim(nextClaimID(), observation.ObservationID, domain.SubjectHost, hostID, "network", "reachability", domain.HostReachable, 96, domain.AssertionObserved, now),
@@ -202,6 +209,7 @@ func normalizePortState(result GSResult) (string, string, int, bool) {
 	return "", "", 0, false
 }
 
+// newTextClaim 创建一个文本值类型的Claim
 func newTextClaim(claimID string, observationID string, subjectType string, subjectID string, namespace string, name string, value string, confidence int, mode string, claimedAt time.Time) domain.Claim {
 	return domain.Claim{
 		ClaimID:       claimID,
@@ -217,6 +225,7 @@ func newTextClaim(claimID string, observationID string, subjectType string, subj
 	}
 }
 
+// newJSONClaim 创建一个JSON值类型的Claim
 func newJSONClaim(claimID string, observationID string, subjectType string, subjectID string, namespace string, name string, valueJSON string, confidence int, mode string, claimedAt time.Time) domain.Claim {
 	return domain.Claim{
 		ClaimID:       claimID,

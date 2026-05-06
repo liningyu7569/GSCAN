@@ -1,7 +1,5 @@
 package core
 
-import "syscall"
-
 // EmissionTask 是完全塌缩后的扫描任务张量 (刚好 8 字节, 64 bits)
 // 它在并发通道中传递，取代了原本臃肿的 *Target 结构体
 type EmissionTask struct {
@@ -26,23 +24,3 @@ type RouteMeta struct {
 // 全局/引擎级的只读路由缓存表
 // 使用切片通过 RouteID 进行 O(1) 访问
 var GlobalRouteCache []RouteMeta
-
-func (t PacketTensor) IsHostAlive(probeProtocol uint8) bool {
-	proto := t.DecodeProtocol()
-	flags := t.DecodeFlags()
-
-	if probeProtocol == 1 && proto == 1 {
-		return true
-	}
-
-	if probeProtocol == syscall.IPPROTO_TCP && proto == syscall.IPPROTO_TCP {
-		if flags == (FlagSYN|FlagACK) || (flags&FlagRST) != 0 {
-			return true
-		}
-	}
-
-	if probeProtocol == syscall.IPPROTO_UDP && proto == syscall.IPPROTO_UDP {
-		return true
-	}
-	return false
-}

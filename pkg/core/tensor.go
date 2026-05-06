@@ -186,3 +186,24 @@ func (t PacketTensor) IsUDPFiltered() bool {
 		return false
 	}
 }
+
+// IsHostAlive 根据回包判断主机是否存活
+func (t PacketTensor) IsHostAlive(probeProtocol uint8) bool {
+	proto := t.DecodeProtocol()
+	flags := t.DecodeFlags()
+
+	if probeProtocol == 1 && proto == 1 {
+		return true
+	}
+
+	if probeProtocol == syscall.IPPROTO_TCP && proto == syscall.IPPROTO_TCP {
+		if flags == (FlagSYN|FlagACK) || (flags&FlagRST) != 0 {
+			return true
+		}
+	}
+
+	if probeProtocol == syscall.IPPROTO_UDP && proto == syscall.IPPROTO_UDP {
+		return true
+	}
+	return false
+}

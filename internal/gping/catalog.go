@@ -4,6 +4,7 @@ import (
 	"sort"
 )
 
+// ListTemplateSummaries 列出所有内建模板的摘要信息（名称、描述、动作数、路由）
 func ListTemplateSummaries() ([]TemplateSummary, error) {
 	templates, err := loadBuiltinTemplates()
 	if err != nil {

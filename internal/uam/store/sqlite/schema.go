@@ -1,5 +1,6 @@
 package sqlite
 
+// schemaSQL UAM 完整 DDL，包含 runs / hosts / endpoints / observations / claims / host_projection_current / endpoint_projection_current / module_results 及视图
 const schemaSQL = `
 CREATE TABLE IF NOT EXISTS runs (
   run_id TEXT PRIMARY KEY,

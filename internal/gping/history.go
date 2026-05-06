@@ -8,6 +8,7 @@ import (
 	"time"
 )
 
+// HistoryFilter 定义 gping 历史记录的查询筛选条件
 type HistoryFilter struct {
 	IP       string `json:"ip,omitempty"`
 	Port     int    `json:"port,omitempty"`
@@ -15,6 +16,7 @@ type HistoryFilter struct {
 	RunID    string `json:"run_id,omitempty"`
 }
 
+// HistoryResult 包含一次 gping 历史查询的完整结果
 type HistoryResult struct {
 	GeneratedAt  string                      `json:"generated_at"`
 	Filter       HistoryFilter               `json:"filter"`
@@ -23,6 +25,7 @@ type HistoryResult struct {
 	Observations []uamservice.ObservationRow `json:"observations,omitempty"`
 }
 
+// BuildHistory 从 UAM 数据库中查询 gping 历史运行记录
 func BuildHistory(ctx context.Context, dbPath string, filter HistoryFilter, limit int) (HistoryResult, error) {
 	if strings.TrimSpace(dbPath) == "" {
 		return HistoryResult{}, fmt.Errorf("--uam-db is required")
@@ -85,6 +88,7 @@ func BuildHistory(ctx context.Context, dbPath string, filter HistoryFilter, limi
 	}, nil
 }
 
+// RenderHistory 将历史查询结果渲染为可读的文本输出
 func RenderHistory(result HistoryResult, verbose bool) string {
 	var b strings.Builder
 	label := historyLabel(result.Filter)

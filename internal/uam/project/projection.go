@@ -6,6 +6,7 @@ import (
 	"time"
 )
 
+// HostGroup 按优先级排序后的主机Claim分组，用于投影刷新
 type HostGroup struct {
 	Priority      int
 	AssertionMode string
@@ -13,6 +14,7 @@ type HostGroup struct {
 	Claims        []domain.Claim
 }
 
+// EndpointGroup 按优先级排序后的端口Claim分组，用于投影刷新
 type EndpointGroup struct {
 	Priority      int
 	AssertionMode string
@@ -20,6 +22,7 @@ type EndpointGroup struct {
 	Claims        []domain.Claim
 }
 
+// ClaimPriority 返回断言模式的优先级数值，override > manual > observed > inferred
 func ClaimPriority(mode string) int {
 	switch mode {
 	case domain.AssertionOverride:
@@ -35,6 +38,7 @@ func ClaimPriority(mode string) int {
 	}
 }
 
+// SelectHostGroup 从Claim列表中筛选主机相关Claim并构建HostGroup
 func SelectHostGroup(claims []domain.Claim) *HostGroup {
 	relevant := make([]domain.Claim, 0, len(claims))
 	for _, claim := range claims {
@@ -55,6 +59,7 @@ func SelectHostGroup(claims []domain.Claim) *HostGroup {
 	return buildGroup(relevant)
 }
 
+// SelectEndpointGroup 从Claim列表中筛选端点相关Claim并构建EndpointGroup
 func SelectEndpointGroup(claims []domain.Claim) *EndpointGroup {
 	relevant := make([]domain.Claim, 0, len(claims))
 	for _, claim := range claims {
@@ -83,6 +88,7 @@ func SelectEndpointGroup(claims []domain.Claim) *EndpointGroup {
 	}
 }
 
+// ShouldApply 判断新Claim组是否应该覆盖当前投影，基于优先级和时间比较
 func ShouldApply(currentMode string, currentClaimedAt *time.Time, nextMode string, nextClaimedAt time.Time) bool {
 	if currentMode == "" {
 		return true
@@ -99,6 +105,7 @@ func ShouldApply(currentMode string, currentClaimedAt *time.Time, nextMode strin
 	return !nextClaimedAt.Before(*currentClaimedAt)
 }
 
+// ApplyHostProjection 将HostGroup的Claim值应用到HostProjectionCurrent上
 func ApplyHostProjection(current domain.HostProjectionCurrent, observation domain.Observation, group *HostGroup) (domain.HostProjectionCurrent, bool) {
 	if group == nil {
 		return current, false
@@ -129,6 +136,7 @@ func ApplyHostProjection(current domain.HostProjectionCurrent, observation domai
 	return next, true
 }
 
+// ApplyEndpointProjection 将EndpointGroup的Claim值应用到EndpointProjectionCurrent上
 func ApplyEndpointProjection(current domain.EndpointProjectionCurrent, observation domain.Observation, group *EndpointGroup) (domain.EndpointProjectionCurrent, bool) {
 	if group == nil {
 		return current, false

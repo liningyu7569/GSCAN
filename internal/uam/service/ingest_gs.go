@@ -8,6 +8,7 @@ import (
 	"time"
 )
 
+// RunMetadata GS运行元数据，描述一次gs扫描的配置信息
 type RunMetadata struct {
 	Command      string
 	Targets      []string
@@ -18,6 +19,7 @@ type RunMetadata struct {
 	OutputFormat string
 }
 
+// ScanResult GS单条L4/L7扫描结果
 type ScanResult struct {
 	IP       string
 	Port     int
@@ -35,10 +37,12 @@ type ScanResult struct {
 	Banner   string
 }
 
+// GSIngester GS扫描结果接入器，负责将GS的L4/L7发现写入UAM的五层对象模型
 type GSIngester struct {
 	*contractIngester
 }
 
+// NewGSIngester 创建GSIngester，初始化数据库并创建Run记录
 func NewGSIngester(ctx context.Context, dbPath string, metadata RunMetadata) (*GSIngester, error) {
 	base, err := newContractIngester(ctx, dbPath, domain.ToolGS, domain.ModuleNameGS, ContractRunMetadata{
 		Command:      metadata.Command,
@@ -56,6 +60,7 @@ func NewGSIngester(ctx context.Context, dbPath string, metadata RunMetadata) (*G
 	return &GSIngester{contractIngester: base}, nil
 }
 
+// IngestResult 将单条L4扫描结果写入Observation、Claim并刷新Projection
 func (g *GSIngester) IngestResult(ctx context.Context, result ScanResult) error {
 	if g == nil || g.store == nil {
 		return nil
@@ -136,6 +141,7 @@ func (g *GSIngester) IngestResult(ctx context.Context, result ScanResult) error 
 	return tx.Commit()
 }
 
+// IngestServiceResult 仅写入服务识别Claim（service/product/version等），不覆盖端口状态
 func (g *GSIngester) IngestServiceResult(ctx context.Context, result ScanResult) error {
 	if g == nil || g.store == nil {
 		return nil
@@ -214,6 +220,7 @@ func (g *GSIngester) IngestServiceResult(ctx context.Context, result ScanResult)
 	return tx.Commit()
 }
 
+// GSDiscoveryResult GS主机发现结果
 type GSDiscoveryResult struct {
 	IP       string
 	Method   string
@@ -221,6 +228,7 @@ type GSDiscoveryResult struct {
 	Protocol string
 }
 
+// IngestDiscovery 写入GS主机发现结果（纯主机级可达性）
 func (g *GSIngester) IngestDiscovery(ctx context.Context, discovery GSDiscoveryResult) error {
 	if g == nil || g.store == nil {
 		return nil

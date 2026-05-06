@@ -7,6 +7,7 @@ import (
 	"time"
 )
 
+// GPingClaimInput gping/模块接入时外部传入的单条Claim输入
 type GPingClaimInput struct {
 	SubjectType   string
 	Namespace     string
@@ -17,6 +18,7 @@ type GPingClaimInput struct {
 	AssertionMode string
 }
 
+// ClaimsFromGPing 将gping外部Claim输入转换为UAM Claim列表，含默认置信度和subject解析
 func ClaimsFromGPing(observationID string, hostID string, endpointID string, claimedAt time.Time, inputs []GPingClaimInput, nextClaimID func() string) ([]domain.Claim, error) {
 	claims := make([]domain.Claim, 0, len(inputs)+1)
 
@@ -74,6 +76,7 @@ func ClaimsFromGPing(observationID string, hostID string, endpointID string, cla
 	return claims, nil
 }
 
+// resolveSubject 根据subjectType决定生效主体类型和ID
 func resolveSubject(subjectType string, hostID string, endpointID string) (string, string, error) {
 	switch subjectType {
 	case "", domain.SubjectEndpoint:

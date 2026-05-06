@@ -17,11 +17,6 @@ import (
 	"github.com/google/gopacket/pcap"
 )
 
-// --- 测试功能专用变量 (用完可注释) ---
-//var testOpenPorts sync.Map
-
-// ------------------------------------
-
 const MaxCWNDLimit = 20000
 
 // 强制扩容至 128 字节，防止 TCP Options 注入时发生物理越界
@@ -115,7 +110,6 @@ func NewEngine(handle *pcap.Handle) *Engine {
 
 func (e *Engine) Run(ctx context.Context, generator *TaskGenerator) {
 	var wg sync.WaitGroup
-	//var exhausted = false
 
 	go e.runSendPacer(ctx)
 	// 启动 L4 Pcap 物理接收流
@@ -137,8 +131,7 @@ Loop:
 		tasks, isDone := generator.GenerateBatch()
 
 		if isDone {
-			//exhausted = true
-			// 关键点：如果任务耗尽且没有正在飞行的探针，说明真的结束了
+			// 任务耗尽且无在途探针时退出
 			if atomic.LoadInt32(&e.activeProbes) == 0 {
 				fmt.Println("[Engine] 所有任务分发完毕，且无在途探针，准备退出...")
 				break Loop
@@ -148,10 +141,6 @@ Loop:
 			time.Sleep(10 * time.Millisecond)
 			continue
 		}
-
-		//if len(tasks) == 0 {
-		//	break Loop
-		//}
 
 		for _, task := range tasks {
 			select {
@@ -180,22 +169,10 @@ Loop:
 		tailWait = 1000 // 最小保底等待 1 秒
 	}
 	time.Sleep(time.Duration(tailWait) * time.Millisecond)
-	//for j := range TestIP {
-	//	fmt.Printf(TestIP[j].String() + " - ")
-	//}
-	// --- 测试功能：输出所有开放端口 (用完可注释) ---
-	//fmt.Println("\n====== [Test] Discovered Open Ports ======")
-	//testOpenPorts.Range(func(key, value interface{}) bool {
-	//	fmt.Printf("=> %s\n", key)
-	//	return true // 继续遍历
-	//})
-	//fmt.Println("==========================================")
-	// ----------------------------------------------
 
 	atomic.StoreInt32(&e.l4Finished, 1)
 	fmt.Println("[Engine] 所有探测任务已安全结束。")
 	storeFinalEngineStats(e.performanceSnapshot())
-	//e.printReport()
 }
 
 func (e *Engine) LaunchProbe(ctx context.Context, channelID uint16, task EmissionTask) {
@@ -405,35 +382,6 @@ func (e *Engine) RunDispatcher(ctx context.Context) {
 			MetricPacketsMatch.Add(uint64(channelID), 1)
 		default:
 			MetricDispatchDrops.Add(uint64(channelID), 1)
-		}
-	}
-}
-
-// RunL7Dispatcher L7 侧唯一消费者。死循环抽水机。
-func (e *Engine) RunL7Dispatcher_(ctx context.Context) {
-	var result queue.ScanResult
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-			if GlobalResultBuffer.Pop(&result) {
-				openResult := ScanResult{
-					IP:       result.IP,
-					Port:     result.Port,
-					Protocol: result.Protocol,
-					Method:   scanKindToString(result.ScanKind),
-					State:    "open",
-				}
-				select {
-				case ResultStream <- openResult:
-				default:
-					printResult(openResult)
-				}
-			} else {
-				// 缓冲区空，让出时间片防止空转
-				time.Sleep(1 * time.Millisecond)
-			}
 		}
 	}
 }

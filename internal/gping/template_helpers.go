@@ -6,10 +6,12 @@ import (
 	"strings"
 )
 
+// normalizeAdapter 将适配器名称转为小写并去除空白
 func normalizeAdapter(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
 }
 
+// inferAdapterForMethod 根据方法名自动推断对应的适配器类型
 func inferAdapterForMethod(method string) string {
 	switch normalizeMethod(method) {
 	case "http-head", "http-get", "http-post":
@@ -33,10 +35,12 @@ func inferAdapterForMethod(method string) string {
 	}
 }
 
+// actionUsesURL 判断动作是否通过 HTTP 适配器使用 URL
 func actionUsesURL(action ActionUnit) bool {
 	return normalizeRoute(action.Route) == "app" && normalizeAdapter(action.Adapter) == "http"
 }
 
+// applyActionParams 将 params 中的参数填充到 action 的对应字段
 func applyActionParams(action *ActionUnit) {
 	if action == nil || len(action.Params) == 0 {
 		return
@@ -70,6 +74,7 @@ func applyActionParams(action *ActionUnit) {
 	}
 }
 
+// templateMatchesTarget 判断模板的 AppliesTo 条件是否匹配给定目标
 func templateMatchesTarget(spec TemplateSpec, target TargetContext) bool {
 	if spec.AppliesTo.IsZero() {
 		return true
@@ -134,6 +139,7 @@ func templateMatchesTarget(spec TemplateSpec, target TargetContext) bool {
 	return true
 }
 
+// stringAny 将任意类型安全转为字符串
 func stringAny(value any) string {
 	switch typed := value.(type) {
 	case string:
@@ -149,6 +155,7 @@ func stringAny(value any) string {
 	}
 }
 
+// intAny 将任意类型安全转为 int
 func intAny(value any) int {
 	switch typed := value.(type) {
 	case int:
@@ -165,6 +172,7 @@ func intAny(value any) int {
 	}
 }
 
+// boolAny 将任意类型安全转为 bool
 func boolAny(value any) bool {
 	switch typed := value.(type) {
 	case bool:
@@ -176,6 +184,7 @@ func boolAny(value any) bool {
 	}
 }
 
+// stringMapAny 将任意类型安全转为 map[string]string
 func stringMapAny(value any) map[string]string {
 	switch typed := value.(type) {
 	case map[string]string:
@@ -191,6 +200,7 @@ func stringMapAny(value any) map[string]string {
 	}
 }
 
+// stringSliceAny 将任意类型安全转为 []string
 func stringSliceAny(value any) []string {
 	switch typed := value.(type) {
 	case []string:

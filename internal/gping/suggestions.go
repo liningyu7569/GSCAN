@@ -5,6 +5,7 @@ import (
 	"strings"
 )
 
+// SuggestTemplates 根据目标上下文推荐匹配的内建模板名称列表
 func SuggestTemplates(target TargetContext) []string {
 	return suggestTemplateNames(
 		target.Protocol,
@@ -16,6 +17,7 @@ func SuggestTemplates(target TargetContext) []string {
 	)
 }
 
+// SuggestTemplatesForCandidate 为候选资产推荐匹配的模板列表
 func SuggestTemplatesForCandidate(item Candidate) []string {
 	return suggestTemplateNames(
 		item.Protocol,

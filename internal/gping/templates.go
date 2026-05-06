@@ -12,6 +12,7 @@ import (
 //go:embed templates/*/*.yaml
 var builtinTemplates embed.FS
 
+// LoadTemplate 根据模板名称加载内建或外部模板文件
 func LoadTemplate(name string) (TemplateSpec, error) {
 	templates, err := loadBuiltinTemplates()
 	if err != nil {
@@ -26,6 +27,7 @@ func LoadTemplate(name string) (TemplateSpec, error) {
 	return TemplateSpec{}, fmt.Errorf("unknown gping template %q", name)
 }
 
+// loadBuiltinTemplates 从 embed.FS 中加载所有内建模板
 func loadBuiltinTemplates() (map[string]TemplateSpec, error) {
 	entries, err := builtinTemplates.ReadDir("templates")
 	if err != nil {

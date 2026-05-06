@@ -5,6 +5,7 @@ import (
 	"fmt"
 )
 
+// executeApp 通过应用层适配器执行探测（HTTP、DNS、FTP、SMTP、Redis、SSH、MySQL 等）
 func executeApp(ctx context.Context, target TargetContext, action ActionUnit) (routeEvidence, error) {
 	adapter, err := adapterForAction(action)
 	if err != nil {

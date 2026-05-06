@@ -13,10 +13,13 @@ import (
 	"time"
 )
 
+// httpAdapter HTTP/HTTPS 协议适配器，支持 HEAD/GET/POST 请求
 type httpAdapter struct{}
 
+// Name 返回适配器名称
 func (httpAdapter) Name() string { return "http" }
 
+// Capabilities 返回 HTTP 适配器支持的能力
 func (httpAdapter) Capabilities() AdapterCapabilities {
 	return AdapterCapabilities{
 		SupportsTLS:      true,
@@ -27,6 +30,7 @@ func (httpAdapter) Capabilities() AdapterCapabilities {
 	}
 }
 
+// Execute 执行 HTTP 请求并返回结构化结果
 func (httpAdapter) Execute(ctx context.Context, req AppRequest) (AppResult, error) {
 	requestURL := strings.TrimSpace(req.URL)
 	if requestURL == "" {

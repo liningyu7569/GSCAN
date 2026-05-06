@@ -27,8 +27,10 @@ const (
 	mysqlClientDeprecateEOF     uint32 = 0x01000000
 )
 
+// mysqlAdapter MySQL 协议适配器，支持 greeting、capabilities、STARTTLS
 type mysqlAdapter struct{}
 
+// mysqlGreeting 解析后的 MySQL 握手包内容
 type mysqlGreeting struct {
 	ProtocolVersion  int
 	ServerVersion    string
@@ -44,8 +46,10 @@ type mysqlGreeting struct {
 	Version          string
 }
 
+// Name 返回适配器名称
 func (mysqlAdapter) Name() string { return "mysql" }
 
+// Capabilities 返回 MySQL 适配器支持的能力
 func (mysqlAdapter) Capabilities() AdapterCapabilities {
 	return AdapterCapabilities{
 		SupportsTLS:      true,
@@ -53,6 +57,7 @@ func (mysqlAdapter) Capabilities() AdapterCapabilities {
 	}
 }
 
+// Execute 执行 MySQL 探测（greeting/capabilities/STARTTLS）并返回结构化结果
 func (mysqlAdapter) Execute(ctx context.Context, req AppRequest) (AppResult, error) {
 	switch normalizeMethod(req.Method) {
 	case "mysql-greeting":

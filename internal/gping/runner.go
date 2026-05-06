@@ -9,6 +9,7 @@ import (
 	"strings"
 )
 
+// Run 执行 gping 探测主流程：解析目标、规划动作、执行并解释证据，可选写入 UAM 数据库
 func Run(ctx context.Context, opts Options) (RunResult, error) {
 	prepared, err := prepareRun(ctx, opts, true)
 	if err != nil {
@@ -83,6 +84,7 @@ func Run(ctx context.Context, opts Options) (RunResult, error) {
 	return result, nil
 }
 
+// attachOperatorAssertions 将操作者手动断言（验证状态、服务覆写）附加到最后一个可写报告中
 func attachOperatorAssertions(reports []ExecutionReport, opts Options) {
 	last := lastWritableReport(reports)
 	if last == nil {
@@ -116,6 +118,7 @@ func attachOperatorAssertions(reports []ExecutionReport, opts Options) {
 	}
 }
 
+// writeReportsToUAM 将执行报告批量写入 UAM SQLite 数据库，返回写入的 run_id
 func writeReportsToUAM(ctx context.Context, opts Options, target TargetContext, reports []ExecutionReport) (string, error) {
 	metadata := uamservice.GPingRunMetadata{
 		Command:  opts.Commandline,

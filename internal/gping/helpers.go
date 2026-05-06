@@ -16,6 +16,7 @@ var titlePattern = regexp.MustCompile(`(?is)<title[^>]*>(.*?)</title>`)
 var leadingBannerCodePattern = regexp.MustCompile(`^\d{3}[ -]+`)
 var versionTokenPattern = regexp.MustCompile(`^\d+(?:\.\d+)+(?:[-._a-zA-Z0-9]+)?$`)
 
+// normalizeProtocol 将协议字符串规范化为 tcp/udp/icmp 或原值
 func normalizeProtocol(value string) string {
 	value = strings.ToLower(strings.TrimSpace(value))
 	switch value {
@@ -30,14 +31,17 @@ func normalizeProtocol(value string) string {
 	}
 }
 
+// normalizeRoute 将路由名称转为小写并去除空白
 func normalizeRoute(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
 }
 
+// normalizeMethod 将方法名转为小写并去除空白
 func normalizeMethod(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
 }
 
+// normalizeVerificationState 将验证状态规范化为 UAM domain 中定义的值
 func normalizeVerificationState(value string) string {
 	value = strings.ToLower(strings.TrimSpace(value))
 	switch value {
@@ -48,6 +52,7 @@ func normalizeVerificationState(value string) string {
 	}
 }
 
+// stringValue 返回非空字符串值，否则返回 fallback
 func stringValue(value string, fallback string) string {
 	if strings.TrimSpace(value) == "" {
 		return fallback
@@ -55,11 +60,13 @@ func stringValue(value string, fallback string) string {
 	return strings.TrimSpace(value)
 }
 
+// floatPtrValue 将 float64 转为指针，用于 RTT 等可选数值字段
 func floatPtrValue(value float64) *float64 {
 	v := value
 	return &v
 }
 
+// marshalExtraJSON 将额外字段 map 序列化为 JSON 字符串
 func marshalExtraJSON(extra map[string]any) string {
 	if len(extra) == 0 {
 		return ""
@@ -71,6 +78,7 @@ func marshalExtraJSON(extra map[string]any) string {
 	return string(raw)
 }
 
+// splitHeaderValue 解析 "key:value" 格式的 HTTP 头部字符串
 func splitHeaderValue(raw string) (string, string, error) {
 	parts := strings.SplitN(raw, ":", 2)
 	if len(parts) != 2 {
@@ -84,6 +92,7 @@ func splitHeaderValue(raw string) (string, string, error) {
 	return key, value, nil
 }
 
+// splitVarValue 解析 "key=value" 格式的模板变量字符串
 func splitVarValue(raw string) (string, string, error) {
 	parts := strings.SplitN(raw, "=", 2)
 	if len(parts) != 2 {
@@ -97,6 +106,7 @@ func splitVarValue(raw string) (string, string, error) {
 	return key, value, nil
 }
 
+// resolveHostToIPv4 将主机名或 IP 解析为 IPv4 地址
 func resolveHostToIPv4(host string) (string, error) {
 	if parsed := net.ParseIP(strings.TrimSpace(host)); parsed != nil {
 		if v4 := parsed.To4(); v4 != nil {
@@ -117,6 +127,7 @@ func resolveHostToIPv4(host string) (string, error) {
 	return "", fmt.Errorf("no IPv4 record found for %s", host)
 }
 
+// splitServerProduct 从 Server 头部解析产品名和版本号（如 "Apache/2.4.41"）
 func splitServerProduct(server string) (string, string) {
 	server = strings.TrimSpace(server)
 	if server == "" {
@@ -131,6 +142,7 @@ func splitServerProduct(server string) (string, string) {
 	return product, strings.TrimSpace(parts[1])
 }
 
+// parseBannerProductVersion 从服务 banner 的首行中解析产品名和版本号
 func parseBannerProductVersion(banner string) (string, string) {
 	banner = strings.TrimSpace(banner)
 	if banner == "" {
@@ -160,6 +172,7 @@ func parseBannerProductVersion(banner string) (string, string) {
 	return product, version
 }
 
+// firstLine 返回文本的首行（去除换行）
 func firstLine(value string) string {
 	value = strings.ReplaceAll(value, "\r\n", "\n")
 	value = strings.ReplaceAll(value, "\r", "\n")
@@ -170,6 +183,7 @@ func firstLine(value string) string {
 	return strings.TrimSpace(lines[0])
 }
 
+// previewText 截断长文本并添加省略号，用于摘要展示
 func previewText(value string, limit int) string {
 	value = strings.TrimSpace(value)
 	if limit <= 0 || len(value) <= limit {
@@ -178,6 +192,7 @@ func previewText(value string, limit int) string {
 	return strings.TrimSpace(value[:limit]) + "..."
 }
 
+// decodeEscapedText 解码转义字符（\\, \r, \n, \t）
 func decodeEscapedText(value string) string {
 	replacer := strings.NewReplacer(
 		`\\`, `\`,
@@ -188,6 +203,7 @@ func decodeEscapedText(value string) string {
 	return replacer.Replace(value)
 }
 
+// extractHTMLTitle 从 HTML 响应体中提取 <title> 标签内容
 func extractHTMLTitle(body string) string {
 	if body == "" {
 		return ""
@@ -201,6 +217,7 @@ func extractHTMLTitle(body string) string {
 	return title
 }
 
+// buildURLString 根据 scheme、host、port、path 构建完整 URL 字符串
 func buildURLString(scheme string, host string, port int, path string) string {
 	pathPart, rawQuery := normalizePathAndQuery(path)
 	urlHost := host
@@ -242,6 +259,7 @@ func defaultPortForScheme(scheme string, port int) bool {
 	}
 }
 
+// cloneHeaders 深拷贝 HTTP 头部 map（可选地过滤敏感字段）
 func cloneHeaders(src map[string]string) map[string]string {
 	if len(src) == 0 {
 		return nil
@@ -249,6 +267,7 @@ func cloneHeaders(src map[string]string) map[string]string {
 	return cloneStringMap(src)
 }
 
+// cloneStringMap 深拷贝 string->string map
 func cloneStringMap(src map[string]string) map[string]string {
 	if len(src) == 0 {
 		return nil
@@ -260,11 +279,13 @@ func cloneStringMap(src map[string]string) map[string]string {
 	return dst
 }
 
+// fileExists 检查指定路径是否为存在的普通文件
 func fileExists(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && !info.IsDir()
 }
 
+// osReadFile 是对 os.ReadFile 的薄封装，便于测试替换
 func osReadFile(path string) ([]byte, error) {
 	return os.ReadFile(path)
 }

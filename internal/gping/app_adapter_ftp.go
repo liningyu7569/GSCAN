@@ -11,16 +11,20 @@ import (
 	"time"
 )
 
+// ftpAdapter FTP 协议适配器，支持 banner 读取、FEAT、AUTH TLS
 type ftpAdapter struct{}
 
+// ftpReply 解析后的 FTP 回复帧
 type ftpReply struct {
 	Code  int
 	Line  string
 	Lines []string
 }
 
+// Name 返回适配器名称
 func (ftpAdapter) Name() string { return "ftp" }
 
+// Capabilities 返回 FTP 适配器支持的能力
 func (ftpAdapter) Capabilities() AdapterCapabilities {
 	return AdapterCapabilities{
 		SupportsTLS:      true,
@@ -28,6 +32,7 @@ func (ftpAdapter) Capabilities() AdapterCapabilities {
 	}
 }
 
+// Execute 执行 FTP 探测（banner/FEAT/AUTH TLS）并返回结构化结果
 func (ftpAdapter) Execute(ctx context.Context, req AppRequest) (AppResult, error) {
 	switch normalizeMethod(req.Method) {
 	case "ftp-banner":

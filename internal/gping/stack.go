@@ -12,6 +12,7 @@ import (
 	"time"
 )
 
+// executeStack 使用操作系统协议栈执行探测（TCP连接、TLS握手或Banner读取）
 func executeStack(ctx context.Context, target TargetContext, action ActionUnit) (routeEvidence, error) {
 	switch normalizeMethod(action.Method) {
 	case "tcp-connect":
@@ -25,6 +26,7 @@ func executeStack(ctx context.Context, target TargetContext, action ActionUnit) 
 	}
 }
 
+// executeTCPConnect 发起标准 TCP 连接，根据错误类型判定端口状态（open/closed/filtered）
 func executeTCPConnect(ctx context.Context, target TargetContext, action ActionUnit) (routeEvidence, error) {
 	timeout := action.Timeout
 	if timeout <= 0 {
@@ -63,6 +65,7 @@ func executeTCPConnect(ctx context.Context, target TargetContext, action ActionU
 	}, nil
 }
 
+// executeTLSHandshake 建立 TCP 连接后执行 TLS 握手，提取证书信息
 func executeTLSHandshake(ctx context.Context, target TargetContext, action ActionUnit) (routeEvidence, error) {
 	timeout := action.Timeout
 	if timeout <= 0 {
@@ -152,6 +155,7 @@ func executeTLSHandshake(ctx context.Context, target TargetContext, action Actio
 	}, nil
 }
 
+// executeBannerRead 建立 TCP 连接后读取服务 Banner，尝试识别产品/版本
 func executeBannerRead(ctx context.Context, target TargetContext, action ActionUnit) (routeEvidence, error) {
 	timeout := action.Timeout
 	if timeout <= 0 {

@@ -1,5 +1,6 @@
 package gping
 
+// applyActionProtocol 根据首个动作推断协议并调整 target 的协议/端口/scheme
 func applyActionProtocol(target TargetContext, actions []ActionUnit) TargetContext {
 	if len(actions) == 0 {
 		return target
@@ -25,6 +26,7 @@ func applyActionProtocol(target TargetContext, actions []ActionUnit) TargetConte
 	return target
 }
 
+// protocolForAction 根据动作的方法名推断传输协议（tcp/udp/icmp）
 func protocolForAction(action ActionUnit) string {
 	if normalizeMethod(action.Method) == "dns-query" {
 		if transport := normalizeProtocol(stringAny(action.Params["transport"])); transport != "" {

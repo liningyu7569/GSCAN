@@ -13,16 +13,20 @@ import (
 	"time"
 )
 
+// dnsAdapter DNS 协议适配器，支持 UDP/TCP 查询
 type dnsAdapter struct{}
 
+// Name 返回适配器名称
 func (dnsAdapter) Name() string { return "dns" }
 
+// Capabilities 返回 DNS 适配器支持的能力
 func (dnsAdapter) Capabilities() AdapterCapabilities {
 	return AdapterCapabilities{
 		SupportedMethods: []string{"dns-query"},
 	}
 }
 
+// Execute 执行 DNS 查询并返回结构化结果
 func (dnsAdapter) Execute(ctx context.Context, req AppRequest) (AppResult, error) {
 	if normalizeMethod(req.Method) != "dns-query" {
 		return AppResult{}, fmt.Errorf("unsupported dns method %q", req.Method)
@@ -132,6 +136,7 @@ var dnsQTypes = map[string]uint16{
 	"AAAA":  28,
 }
 
+// dnsResponse 解析后的 DNS 响应结构
 type dnsResponse struct {
 	RCode           string
 	AnswerCount     int

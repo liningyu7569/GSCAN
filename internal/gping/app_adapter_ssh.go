@@ -22,8 +22,10 @@ const (
 	sshMessageKexECDHReply = 31
 )
 
+// sshAdapter SSH 协议适配器，支持 banner 读取、密钥交换、主机密钥获取
 type sshAdapter struct{}
 
+// sshKexInit 解析后的 SSH KEXINIT 消息内容
 type sshKexInit struct {
 	KexAlgorithms         []string
 	HostKeyAlgorithms     []string
@@ -33,14 +35,17 @@ type sshKexInit struct {
 	MACsServerToClient    []string
 }
 
+// Name 返回适配器名称
 func (sshAdapter) Name() string { return "ssh" }
 
+// Capabilities 返回 SSH 适配器支持的能力
 func (sshAdapter) Capabilities() AdapterCapabilities {
 	return AdapterCapabilities{
 		SupportedMethods: []string{"ssh-banner", "ssh-kexinit", "ssh-hostkey"},
 	}
 }
 
+// Execute 执行 SSH 探测（banner/kexinit/hostkey）并返回结构化结果
 func (sshAdapter) Execute(ctx context.Context, req AppRequest) (AppResult, error) {
 	switch normalizeMethod(req.Method) {
 	case "ssh-banner":
@@ -514,6 +519,7 @@ func sshHostKeyFingerprint(blob []byte) string {
 	return "SHA256:" + base64.RawStdEncoding.EncodeToString(sum[:])
 }
 
+// sshPayloadReader SSH 协议载荷顺序读取器
 type sshPayloadReader struct {
 	data []byte
 	pos  int
